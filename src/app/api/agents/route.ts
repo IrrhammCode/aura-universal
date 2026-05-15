@@ -23,6 +23,8 @@ export async function POST(req: Request) {
            name: body.name,
            avatarId: body.avatarId,
            voiceId: body.voiceId,
+           instructions: body.instructions,
+           templateType: body.templateType,
            tone: body.tone,
            empathy: body.empathy,
            depth: body.depth
@@ -35,6 +37,8 @@ export async function POST(req: Request) {
            name: body.name,
            avatarId: body.avatarId,
            voiceId: body.voiceId,
+           instructions: body.instructions,
+           templateType: body.templateType,
            tone: body.tone || 50,
            empathy: body.empathy || 50,
            depth: body.depth || 50

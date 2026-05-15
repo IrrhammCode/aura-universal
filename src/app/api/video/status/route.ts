@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import fetch from 'node-fetch';
+import { decryptApiKey } from '@/lib/encryption';
 
 const ORG_ID = "org_default";
 
@@ -33,7 +33,8 @@ export async function GET(req: Request) {
 
     // 2. Fetch from HeyGen API
     const settings = await prisma.settings.findUnique({ where: { organizationId: ORG_ID } });
-    const apiKey = settings?.heygenKey || process.env.HEYGEN_API_KEY;
+    const rawKey = settings?.heygenKey;
+    const apiKey = rawKey ? decryptApiKey(rawKey) : process.env.HEYGEN_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json({ error: "HeyGen API Key is missing." }, { status: 400 });

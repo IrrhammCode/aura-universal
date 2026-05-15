@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { decryptApiKey } from '@/lib/encryption';
-import fetch from 'node-fetch';
 
 const ORG_ID = "org_default";
 

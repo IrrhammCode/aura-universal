@@ -1,53 +1,72 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
+import { prisma } from '@/lib/prisma';
+import OpenAI from 'openai';
+import { chunkText } from '@/lib/vector';
+import { decryptApiKey } from '@/lib/encryption';
 import path from 'path';
+import fs from 'fs';
 
-const dataDir = path.join(process.cwd(), 'data');
-const dbPath = path.join(dataDir, 'kb.json');
+const ORG_ID = "org_default";
 const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-
-// Ensure directories exist
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify([]));
 
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
-    
-    if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
-    }
+    if (!file) return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+
+    const org = await prisma.organization.findUnique({
+      where: { id: ORG_ID },
+      include: { settings: true }
+    });
+    const rawKey = org?.settings?.openAiKey;
+    const apiKey = rawKey ? decryptApiKey(rawKey) : process.env.OPENAI_API_KEY;
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const content = buffer.toString('utf8'); // Basic for TXT/MD
 
-    // Save the file
     const uniqueFileName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
     const filePath = path.join(uploadDir, uniqueFileName);
     fs.writeFileSync(filePath, buffer);
 
-    // Prepare Document Metadata
-    const newDoc = {
-      id: "DOC-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
-      title: file.name,
-      size: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-      vectors: Math.floor(Math.random() * 50000) + 10000,
-      uploadedAt: new Date().toISOString(),
-      url: `/uploads/${uniqueFileName}` // The path to view the file
-    };
+    const chunks = chunkText(content, 500);
+    let chunkDataToSave = [];
+    const isPlaceholder = !apiKey || apiKey.includes('your_openai_key');
 
-    // Save to Database
-    const fileData = fs.readFileSync(dbPath, 'utf8');
-    const docs = JSON.parse(fileData);
-    docs.unshift(newDoc);
-    fs.writeFileSync(dbPath, JSON.stringify(docs, null, 2));
+    if (apiKey && !isPlaceholder) {
+      const openai = new OpenAI({ apiKey });
+      const response = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: chunks,
+      });
+      chunkDataToSave = response.data.map((d, i) => ({
+        content: chunks[i],
+        embedding: JSON.stringify(d.embedding)
+      }));
+    } else {
+      chunkDataToSave = chunks.map(c => ({
+        content: c,
+        embedding: JSON.stringify(Array(1536).fill(0).map(() => Math.random()))
+      }));
+    }
 
-    return NextResponse.json({ success: true, document: newDoc });
+    const savedDoc = await (prisma.document as any).create({
+      data: {
+        organizationId: ORG_ID,
+        title: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        vectors: chunks.length,
+        url: `/uploads/${uniqueFileName}`,
+        content: content,
+        chunks: { create: chunkDataToSave }
+      }
+    });
 
+    return NextResponse.json({ success: true, document: savedDoc });
   } catch (error) {
-    console.error('Upload Error:', error);
-    return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+    console.error('Upload error:', error);
+    return NextResponse.json({ error: 'Failed to process file' }, { status: 500 });
   }
 }

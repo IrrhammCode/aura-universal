@@ -25,7 +25,7 @@ export async function captureEvent(distinctId: string, eventName: string, proper
       properties: properties
     });
     // Ensure the event is sent immediately in serverless environments
-    await client.shutdownAsync();
+    await client.shutdown();
     posthogClient = null; // Reset for next invocation
   } catch (error) {
     console.error('PostHog Capture Error:', error);

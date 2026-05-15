@@ -3,12 +3,14 @@
 import { ChevronDown, Zap, Activity, Shield, Smile, Terminal, Globe, Cpu, MoreHorizontal, ArrowUpRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 
 import { useAura } from '@/context/AuraContext'
+import { GlobalEngagementMap } from '@/components/GlobalEngagementMap'
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview')
-  const { activeAgent, setActiveAgent, telemetryLogs, addTelemetryLog, interactionLogs } = useAura()
+  const { activeAgent, setActiveAgent, addAgent, telemetryLogs, addTelemetryLog, interactionLogs } = useAura()
   
   const [deployId, setDeployId] = useState('')
   const [deployPersona, setDeployPersona] = useState('Professional / Analytical')
@@ -25,13 +27,21 @@ export default function Dashboard() {
 
   const handleDeploy = (e: React.FormEvent) => {
     e.preventDefault()
-    if (activeAgent) return // Already deployed
+    if (activeAgent) {
+      toast.error("An agent node is already active on this terminal.")
+      return
+    }
     const id = deployId || 'AURA-X'
-    setActiveAgent({ id: id.toLowerCase(), name: id, tone: 70, empathy: 50, depth: 50 })
+    
     addTelemetryLog({ source: 'DEPLOYMENT', trace: `Initiating Node ${id} in US-EAST-1 (${deployPersona})`, status: 'PROCESSING' })
-    setTimeout(() => {
-       addTelemetryLog({ source: 'SYSTEM', trace: `Node ${id} Online`, status: 'SUCCESS' })
-    }, 1500)
+    
+    addAgent({
+      name: id,
+      tone: 70,
+      empathy: 50,
+      depth: 50,
+      templateType: deployPersona
+    })
   }
 
   const handleScan = () => {
@@ -108,70 +118,90 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[180px]"
+            className="space-y-8"
           >
-            {/* KPI: Active Instances */}
-            <StatCard className="md:col-span-3" title="Active Instances" value={activeAgent ? "1" : "---"} sub={activeAgent ? "Active" : "OFFLINE"} icon={<Cpu size={16}/>} accent="cyan" />
-            <StatCard className="md:col-span-3" title="Resolution Velocity" value={resolutionVelocity} sub={totalInteractions > 0 ? "Optimal" : "AWAITING DATA"} icon={<Zap size={16}/>} accent="emerald" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <div className="lg:col-span-8 space-y-8">
+                <GlobalEngagementMap />
+                
+                <div className="glass-card overflow-hidden flex flex-col">
+                  <div className="p-8 border-b border-white/5 flex justify-between items-center">
+                     <div className="space-y-1">
+                        <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Live Telemetry</h3>
+                        <p className="text-[8px] text-zinc-700 font-mono uppercase">Global Node Streams</p>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Live Sync Active</span>
+                     </div>
+                  </div>
+                  <div className="overflow-auto max-h-[400px]">
+                    <table className="w-full text-left text-xs">
+                      <tbody className="divide-y divide-white/5 text-zinc-400">
+                        {interactionLogs.slice(0, 10).map((log, i) => (
+                          <LogRow 
+                            key={`interaction-${i}`} 
+                            event={log.input.length > 20 ? "QUERY" : "ACTION"} 
+                            logic={log.input} 
+                            time={log.time} 
+                            status="SUCCESS"
+                          />
+                        ))}
+                        {telemetryLogs.map((log, i) => (
+                          <LogRow key={`telemetry-${i}`} event={log.source} logic={log.trace} time={log.timestamp} status={log.status} />
+                        ))}
+                        {interactionLogs.length === 0 && telemetryLogs.length === 0 && (
+                          <tr className="text-zinc-600"><td colSpan={3} className="px-8 py-6">No recent telemetry.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
 
-            {/* Liquid Chart Card */}
-            <div className="md:col-span-6 md:row-span-2 glass-card p-8 flex flex-col justify-between relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-8">
-                 <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer">
-                    <ArrowUpRight size={18} className="text-zinc-400" />
+              <div className="lg:col-span-4 space-y-8">
+                 {/* Performance Index */}
+                 <div className="glass-card p-10 space-y-8 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+                       <Zap size={80} className="text-cyan-500" />
+                    </div>
+                    <div>
+                       <h3 className="text-[11px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-6">Performance Index</h3>
+                       <div className="flex items-baseline gap-3">
+                          <span className="text-6xl font-bold text-white tracking-tighter tabular-nums">{resolutionVelocity}</span>
+                          <div className="flex flex-col">
+                             <span className="text-emerald-500 text-[10px] font-bold flex items-center gap-1"><ArrowUpRight size={12}/> +2.4%</span>
+                             <span className="text-zinc-600 text-[8px] font-bold uppercase tracking-widest">Resolution Rate</span>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="space-y-6">
+                       <MetricBar label="Sentiment Synchronization" value={sentimentSync === "---" ? 0 : parseFloat(sentimentSync) * 20} display={sentimentSync} />
+                       <MetricBar label="Knowledge Base Coverage" value={totalInteractions > 0 ? 94 : 0} display={totalInteractions > 0 ? "94.2%" : "---"} />
+                    </div>
                  </div>
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Neural Resonance</h3>
-                <p className="text-2xl font-bold text-white tracking-tight">{activeAgent ? `${totalInteractions} Interactions Logged` : "System Standby"}</p>
-              </div>
-              
-              {activeAgent ? (
-                <div className="h-48 w-full mt-8 relative">
-                  <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
-                    <path d={`${dynamicPath} V100 H0 Z`} fill="url(#chart-grad)" />
-                    <motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2 }} d={dynamicPath} fill="none" stroke="#06b6d4" strokeWidth="2" />
-                  </svg>
-                </div>
-              ) : (
-                <div className="h-48 w-full mt-8 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl space-y-3 opacity-50">
-                   <Activity size={32} className="text-zinc-800" />
-                   <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest">No Active Neural Streams</p>
-                </div>
-              )}
-            </div>
 
-            <StatCard className="md:col-span-3" title="Sentiment Sync" value={sentimentSync} sub={totalInteractions > 0 ? "Resonant" : "AWAITING DATA"} icon={<Smile size={16}/>} accent="purple" />
-            <StatCard className="md:col-span-3" title="System Integrity" value={activeAgent ? "99.9%" : "---"} sub={activeAgent ? "Secured" : "OFFLINE"} icon={<Shield size={16}/>} accent="blue" />
-
-            {/* Deployment Matrix */}
-            <div className="md:col-span-4 md:row-span-3 glass-card p-8 space-y-8">
-              <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Quick Deploy</h3>
-              <form onSubmit={handleDeploy} className="space-y-6">
-                <DeploymentInput label="Agent Identifier" placeholder="e.g. Aura-X" value={deployId} onChange={(e: any) => setDeployId(e.target.value)} />
-                <DeploymentInput label="Target Persona" isSelect value={deployPersona} onChange={(e: any) => setDeployPersona(e.target.value)} />
-                <button disabled={!!activeAgent} type="submit" className="w-full py-5 bg-white text-black font-bold text-[11px] uppercase tracking-[0.3em] rounded-2xl hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xl">
-                  {activeAgent ? 'Node Active' : 'Initiate Node'}
-                </button>
-              </form>
-            </div>
-
-            {/* Interaction Log (Ultra-Dense) */}
-            <div className="md:col-span-8 md:row-span-3 glass-card overflow-hidden flex flex-col">
-              <div className="p-8 border-b border-white/5 flex justify-between items-center">
-                 <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Live Telemetry</h3>
-              </div>
-              <div className="flex-1 overflow-auto">
-                <table className="w-full text-left text-xs">
-                  <tbody className="divide-y divide-white/5 text-zinc-400">
-                    {telemetryLogs.slice(0, 5).map((log, i) => (
-                      <LogRow key={i} event={log.source} logic={log.trace} time={log.timestamp} />
-                    ))}
-                    {telemetryLogs.length === 0 && (
-                      <tr className="text-zinc-600"><td colSpan={3} className="px-8 py-6">No recent telemetry.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                 {/* Quick Deployment */}
+                 <div className="glass-card p-10 space-y-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white group-hover:border-cyan-500/50 transition-all">
+                        <Terminal size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white tracking-tight">Deploy New Agent</h3>
+                        <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Rapid Node Initialization</p>
+                      </div>
+                    </div>
+                    
+                    <form onSubmit={handleDeploy} className="space-y-6">
+                      <DeploymentInput label="Agent Identifier" placeholder="e.g. Aura-X" value={deployId} onChange={(e: any) => setDeployId(e.target.value)} />
+                      <DeploymentInput label="Target Persona" isSelect value={deployPersona} onChange={(e: any) => setDeployPersona(e.target.value)} />
+                      <button disabled={!!activeAgent} type="submit" className="w-full py-5 bg-white text-black font-bold text-[11px] uppercase tracking-[0.3em] rounded-2xl hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xl">
+                        {activeAgent ? 'Node Active' : 'Initiate Node'}
+                      </button>
+                    </form>
+                 </div>
               </div>
             </div>
           </motion.div>
@@ -355,5 +385,24 @@ function TelemetryRow({ source, trace, status }: any) {
         </span>
       </td>
     </tr>
+  )
+}
+
+function MetricBar({ label, value, display }: { label: string, value: number, display: string }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-end">
+        <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">{label}</span>
+        <span className="text-xs font-bold text-white tabular-nums">{display}</span>
+      </div>
+      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+        <motion.div 
+          initial={{ width: 0 }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 1.5, ease: "easeOut" }}
+          className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 rounded-full"
+        />
+      </div>
+    </div>
   )
 }

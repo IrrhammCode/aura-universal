@@ -1,417 +1,361 @@
 'use client'
 
-import { Video, Sparkles, Play, Download, Clock, Layers, Book, Users, Wand2, Loader2, Globe } from 'lucide-react'
+import { Video, Sparkles, Play, Download, Clock, Layers, Book, Users, Wand2, Loader2, Globe, Phone, X, Mic, Send, MessageSquare, Activity } from 'lucide-react'
 import { useAura } from '@/context/AuraContext'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export default function VideoStudio() {
-  const { documents, activeAgent, renderJobs, addRenderJob, addTelemetryLog } = useAura()
+  const { documents, activeAgent, addTelemetryLog } = useAura()
   const [isSynthesizing, setIsSynthesizing] = useState(false)
-  const [htmlCode, setHtmlCode] = useState('<!-- Awaiting AI Generation -->\n<div class="hyperframe-scene" data-duration="30s">\n  <heygen-avatar agent="aura-x" />\n</div>')
-
-  const [studioMode, setStudioMode] = useState<'knowledge' | 'outreach' | 'batch'>('knowledge')
+  const [studioMode, setStudioMode] = useState<'knowledge' | 'outreach' | 'live' | 'resolution'>('live')
   const [synthesisGoal, setSynthesisGoal] = useState('')
   const [targetName, setTargetName] = useState('')
   const [targetCompany, setTargetCompany] = useState('')
-
-  const [isExporting, setIsExporting] = useState(false)
-  const [videoJobs, setVideoJobs] = useState<any[]>([])
-  const [jobFilter, setJobFilter] = useState<'ALL' | 'PROCESSING' | 'COMPLETED' | 'FAILED'>('ALL')
-
-  const filteredJobs = jobFilter === 'ALL' ? videoJobs : videoJobs.filter(j => j.status === jobFilter)
-
-  // Load real video jobs
-  useState(() => {
-     fetch('/api/video/jobs')
-       .then(res => res.json())
-       .then(data => { if (Array.isArray(data)) setVideoJobs(data); })
-  })
-
-  // Poll for status updates
+  const [tickets, setTickets] = useState<any[]>([])
+  const [selectedTicket, setSelectedTicket] = useState<any>(null)
+  
+  // Live Call States
+  const [isInCall, setIsInCall] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null)
+  
   useEffect(() => {
-    const interval = setInterval(() => {
-       const processingJobs = videoJobs.filter(j => j.status === 'PROCESSING');
-       if (processingJobs.length > 0) {
-          processingJobs.forEach(async (job) => {
-             try {
-                const res = await fetch(`/api/video/status?id=${job.id}`);
-                const data = await res.json();
-                if (data.success && data.job.status !== 'PROCESSING') {
-                   setVideoJobs(prev => prev.map(j => j.id === job.id ? data.job : j));
-                   if (data.job.status === 'COMPLETED') {
-                      addTelemetryLog({ source: 'VIDEO_ENGINE', trace: `Render completed: ${job.title}`, status: 'SUCCESS' });
-                   }
-                }
-             } catch (e) {}
-          });
-       }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [videoJobs]);
-
-  const handleSynthesize = async () => {
-    if (studioMode === 'knowledge' && !documents.length) {
-       alert("No knowledge base documents found. Please sync your KB first.");
-       return;
+    if (studioMode === 'resolution') {
+      fetch('/api/tickets')
+        .then(res => res.json())
+        .then(data => setTickets(data))
+        .catch(err => console.error("Failed to fetch tickets", err))
     }
-    setIsSynthesizing(true)
-    addTelemetryLog({ source: 'STUDIO', trace: 'Synthesizing HyperFrame composition...', status: 'PROCESSING' })
-    
+  }, [studioMode])
+
+  const handleGenerateResolution = async () => {
+    if (!selectedTicket || !synthesisGoal) {
+      toast.error("Please select a ticket and provide a resolution prompt.");
+      return;
+    }
+
+    setIsSynthesizing(true);
+    addTelemetryLog({ source: 'HYPERFRAME', trace: `Generating Resolution Video for ${selectedTicket.ticketId}...`, status: 'PROCESSING' });
+
     try {
       const res = await fetch('/api/studio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode: studioMode,
-          documentId: documents.length > 0 ? documents[0].id : null,
-          documentTitle: documents.length > 0 ? documents[0].title : null,
-          targetProfile: studioMode === 'outreach' ? { name: targetName || 'John Doe', company: targetCompany || 'Acme Corp' } : null,
-          agentId: activeAgent?.id,
-          empathy: activeAgent?.empathy,
-          instruction: synthesisGoal
+          mode: 'resolution',
+          agentId: activeAgent?.id || 'aura-x',
+          ticketId: selectedTicket.ticketId,
+          issueImage: selectedTicket.issueImage,
+          instruction: synthesisGoal,
+          empathy: 90
         })
       });
-      
       const data = await res.json();
-      
-      if (res.ok) {
-        setHtmlCode(data.html);
-        addTelemetryLog({ source: 'STUDIO', trace: 'Composition ready for export', status: 'SUCCESS' });
-      } else {
-        throw new Error(data.error);
-      }
+      toast.success(`Hyperframe Rendered! Sent to ${selectedTicket.customerEmail}`);
+      addTelemetryLog({ source: 'HYPERFRAME', trace: `Resolution Video Ready: ${data.id}`, status: 'SUCCESS' });
     } catch (err) {
-      console.error("Synthesis failed", err);
-      addTelemetryLog({ source: 'STUDIO', trace: 'Synthesis failed.', status: 'ERROR' });
+      toast.error("Failed to generate resolution video.");
     } finally {
-      setIsSynthesizing(false)
+      setIsSynthesizing(false);
     }
   }
 
-  const [csvTargets, setCsvTargets] = useState<{name: string, company: string}[]>([])
-
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-     const file = e.target.files?.[0];
-     if (!file) return;
-     const reader = new FileReader();
-     reader.onload = (event) => {
-        const text = event.target?.result as string;
-        const lines = text.split('\n').filter(line => line.trim() !== '');
-        // Assume Name, Company, LinkedIn
-        const parsed = lines.slice(1).map(line => {
-           const [name, company] = line.split(',');
-           return { name: name?.trim() || 'Unknown', company: company?.trim() || 'Unknown' };
-        });
-        setCsvTargets(parsed);
-        toast.success(`Loaded ${parsed.length} targets from CSV`);
-     };
-     reader.readAsText(file);
+  const handleStartCall = async () => {
+    setIsConnecting(true)
+    addTelemetryLog({ source: 'LIVE_STREAM', trace: 'Initializing Neural Link for Live Video...', status: 'PROCESSING' })
+    
+    try {
+      const { HeyGenManager } = await import('@/lib/heygen')
+      const manager = HeyGenManager.getInstance()
+      const avatarId = activeAgent?.avatarId || 'aura-x'
+      const embed = await manager.createLiveAvatarEmbed(avatarId, undefined, true)
+      setEmbedUrl(embed.url)
+      setIsInCall(true)
+      addTelemetryLog({ source: 'LIVE_STREAM', trace: 'Neural Link Established. Call Active.', status: 'SUCCESS' })
+    } catch (err) {
+      console.error("Failed to start Live Call", err)
+      toast.error("Failed to establish video link.")
+    } finally {
+      setIsConnecting(false)
+    }
   }
 
-  const handleExportVideo = async () => {
-     if (htmlCode.includes('Awaiting AI Generation')) return;
-     setIsExporting(true);
-     addTelemetryLog({ source: 'VIDEO_ENGINE', trace: `Initializing ${studioMode === 'batch' ? csvTargets.length : 1} MP4 render job(s)...`, status: 'PROCESSING' });
-
-     try {
-       const targetsToProcess = studioMode === 'batch' && csvTargets.length > 0 
-          ? csvTargets 
-          : [{ name: targetName || 'John Doe', company: targetCompany || 'Acme Corp' }];
-
-       const newJobs = [];
-
-       for (const target of targetsToProcess) {
-          const res = await fetch('/api/video/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: studioMode === 'knowledge' ? 'Knowledge Base Explainer' : `Outreach: ${target.name} @ ${target.company}`,
-              script: synthesisGoal || `Hello ${target.name}, welcome to our video generated by Aura.`,
-              avatarId: activeAgent?.avatarId,
-              voiceId: activeAgent?.voiceId
-            })
-          });
-
-          const data = await res.json();
-          if (data.success) {
-             newJobs.push(data.job);
-             addTelemetryLog({ source: 'VIDEO_ENGINE', trace: `Job submitted: ${data.job.id}`, status: 'SUCCESS' });
-          } else {
-             alert(data.error);
-          }
-       }
-       setVideoJobs([...newJobs, ...videoJobs]);
-     } catch (e) {
-       console.error(e);
-       addTelemetryLog({ source: 'VIDEO_ENGINE', trace: 'Render submission failed.', status: 'ERROR' });
-     } finally {
-       setIsExporting(false);
-     }
-  }
   return (
     <div className="p-10 max-w-[1600px] mx-auto space-y-12">
-      <header className="space-y-1">
-        <h1 className="text-3xl font-bold text-white tracking-tighter uppercase">Video <span className="text-zinc-500 font-medium">Studio</span></h1>
-        <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.4em]">
-           Powered by HeyGen <span className="text-cyan-500">HyperFrames</span>
+      <header className="flex justify-between items-end">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold text-white tracking-tighter uppercase">Neural <span className="text-zinc-500 font-medium">Studio</span></h1>
+          <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-[0.4em]">
+             Interactive Avatar & Video Engine
+          </div>
+        </div>
+        <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-2xl px-6 py-3">
+           <div className="text-right">
+              <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Active Agent</p>
+              <p className="text-xs font-bold text-white uppercase">{activeAgent?.name || 'AURA / ALPHA'}</p>
+           </div>
+           <div className="w-10 h-10 rounded-full border border-cyan-500/50 bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+              <Users size={20} />
+           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[700px]">
         
-        {/* Production Lab */}
-        <div className="lg:col-span-5 space-y-8">
-           <div className="glass-card p-8 space-y-8">
-              <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                 <div className="flex items-center gap-3">
-                    <Sparkles size={16} className="text-cyan-400" />
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Production Lab</h3>
-                 </div>
-                 <div className="flex gap-1">
-                    <div className="w-1 h-1 rounded-full bg-cyan-500 shadow-[0_0_5px_cyan]" />
-                 </div>
-              </div>
-              
-              <div className="space-y-6">
-                 {/* Mode Selector */}
-                 <div className="grid grid-cols-3 gap-3">
-                    <button 
-                       onClick={() => setStudioMode('knowledge')}
-                       className={`p-4 rounded-2xl font-bold text-[9px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${studioMode === 'knowledge' ? 'bg-white text-black' : 'bg-white/5 border border-white/5 text-zinc-500 hover:border-white/20 hover:text-white'}`}
-                    >
-                       <Book size={16} />
-                       Knowledge Base
-                    </button>
-                    <button 
-                       onClick={() => setStudioMode('outreach')}
-                       className={`p-4 rounded-2xl font-bold text-[9px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${studioMode === 'outreach' ? 'bg-white text-black' : 'bg-white/5 border border-white/5 text-zinc-500 hover:border-white/20 hover:text-white'}`}
-                    >
-                       <Users size={16} />
-                       Single Outreach
-                    </button>
-                    <button 
-                       onClick={() => setStudioMode('batch')}
-                       className={`p-4 rounded-2xl font-bold text-[9px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${studioMode === 'batch' ? 'bg-white text-black' : 'bg-white/5 border border-white/5 text-zinc-500 hover:border-white/20 hover:text-white'}`}
-                    >
-                       <Layers size={16} />
-                       Batch CSV
-                    </button>
-                 </div>
-
-                 {studioMode === 'knowledge' && (
-                   <div className="space-y-4">
-                      <div className="space-y-2">
-                         <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Select Knowledge Source</label>
-                         <select className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-4 text-xs text-white appearance-none focus:outline-none">
-                           {documents.map(doc => <option key={doc.id}>{doc.title}</option>)}
-                           {documents.length === 0 && <option>No Documents Available in KB</option>}
-                         </select>
-                      </div>
-
-                      <div className="space-y-2">
-                         <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Synthesis Goal</label>
-                         <textarea 
-                            rows={4}
-                            value={synthesisGoal}
-                            onChange={(e) => setSynthesisGoal(e.target.value)}
-                            placeholder="e.g. Summarize the 'Safety Protocol' into a 1-minute explainer for new employees."
-                            className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50 resize-none transition-all"
-                         />
-                      </div>
-                   </div>
-                 )}
-                 
-                 {studioMode === 'outreach' && (
-                   <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                         <div className="space-y-2">
-                            <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Target Name</label>
-                            <input 
-                               type="text" 
-                               value={targetName}
-                               onChange={(e) => setTargetName(e.target.value)}
-                               placeholder="John Doe" 
-                               className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50" 
-                            />
-                         </div>
-                         <div className="space-y-2">
-                            <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Target Company</label>
-                            <input 
-                               type="text" 
-                               value={targetCompany}
-                               onChange={(e) => setTargetCompany(e.target.value)}
-                               placeholder="Acme Corp" 
-                               className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50" 
-                            />
-                         </div>
-                      </div>
-                      <div className="space-y-2">
-                         <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Outreach Pitch</label>
-                         <textarea 
-                            rows={3}
-                            value={synthesisGoal}
-                            onChange={(e) => setSynthesisGoal(e.target.value)}
-                            placeholder="e.g. Highlight our new API infrastructure and how it solves their scaling issues."
-                            className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50 resize-none transition-all"
-                         />
-                      </div>
-                   </div>
-                 )}
-
-                 {studioMode === 'batch' && (
-                   <div className="space-y-4">
-                      <div className="space-y-2">
-                         <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Upload Targets (CSV)</label>
-                         <div className="border border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center space-y-4 bg-white/[0.02]">
-                            <Download size={24} className="text-zinc-600" />
-                            <div className="text-center">
-                               <p className="text-xs text-white">Drop your .csv file here</p>
-                               <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-1">Columns: Name, Company, LinkedIn URL</p>
-                               {csvTargets.length > 0 && <p className="text-cyan-500 text-[10px] mt-2 font-bold">{csvTargets.length} targets loaded ready for synthesis</p>}
-                            </div>
-                            <input type="file" accept=".csv" className="hidden" id="csv-upload" onChange={handleCsvUpload} />
-                            <label htmlFor="csv-upload" className="px-6 py-3 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-[10px] font-bold uppercase tracking-widest text-white cursor-pointer">
-                               Browse Files
-                            </label>
-                         </div>
-                      </div>
-                   </div>
-                 )}
-
-                 <button 
-                    onClick={handleSynthesize}
-                    className="w-full py-5 bg-cyan-500 text-black font-black text-[10px] uppercase tracking-[0.3em] rounded-2xl hover:bg-cyan-400 transition-all shadow-[0_15px_30px_-10px_rgba(6,182,212,0.4)] flex justify-center items-center gap-2"
-                 >
-                    {isSynthesizing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />} 
-                    {isSynthesizing ? 'Synthesizing...' : 'Synthesize Video'}
-                 </button>
-              </div>
-           </div>
-
-           <div className="glass-card p-8 space-y-6">
+        {/* SIDEBAR CONFIG (4 COLS) */}
+        <div className="lg:col-span-4 space-y-6">
+           <div className="glass-card p-8 space-y-8 h-full flex flex-col">
               <div className="flex items-center gap-3 border-b border-white/5 pb-4">
-                 <Layers size={16} className="text-zinc-500" />
-                 <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Generated HTML/CSS</h3>
+                 <Wand2 size={16} className="text-cyan-400" />
+                 <h3 className="text-[11px] font-bold text-white uppercase tracking-[0.2em]">Studio Mode</h3>
               </div>
-              <div className="h-48 bg-black/80 rounded-xl border border-white/5 p-4 overflow-y-auto font-mono text-[9px] text-zinc-500 whitespace-pre">
-                 {htmlCode}
+
+              <div className="grid grid-cols-1 gap-3">
+                 <ModeButton 
+                   icon={<Phone size={18} />} 
+                   title="Neural Live Call" 
+                   desc="Real-time Face-to-Face" 
+                   active={studioMode === 'live'} 
+                   onClick={() => setStudioMode('live')} 
+                 />
+                 <ModeButton 
+                   icon={<Book size={18} />} 
+                   title="Knowledge Summary" 
+                   desc="Doc-to-Video Synthesis" 
+                   active={studioMode === 'knowledge'} 
+                   onClick={() => setStudioMode('knowledge')} 
+                 />
+                 <ModeButton 
+                   icon={<Users size={18} />} 
+                   title="Hyper Outreach" 
+                   desc="Personalized AI Pitch" 
+                   active={studioMode === 'outreach'} 
+                   onClick={() => setStudioMode('outreach')} 
+                 />
+                 <ModeButton 
+                   icon={<Activity size={18} />} 
+                   title="Resolution Video" 
+                   desc="Post-Service Follow-up" 
+                   active={studioMode === 'resolution'} 
+                   onClick={() => setStudioMode('resolution')} 
+                 />
+              </div>
+
+              <div className="flex-1 overflow-hidden">
+                {studioMode === 'live' ? (
+                  <div className="space-y-6 pt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="p-6 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 space-y-4">
+                       <p className="text-[10px] text-zinc-400 leading-relaxed font-medium">
+                         Initiate a direct neural link for real-time interaction. Aura will use its active Knowledge Matrix to answer questions via live video avatar.
+                       </p>
+                       <div className="flex items-center gap-3">
+                          <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_10px_cyan]" />
+                          <span className="text-[9px] font-black text-cyan-500 uppercase tracking-widest">WebRTC Link Ready</span>
+                       </div>
+                    </div>
+                    <button 
+                      onClick={handleStartCall}
+                      disabled={isConnecting || isInCall}
+                      className="w-full py-5 bg-white text-black rounded-2xl font-black text-[11px] uppercase tracking-[0.3em] hover:bg-cyan-400 transition-all flex items-center justify-center gap-3"
+                    >
+                      {isConnecting ? <Loader2 size={16} className="animate-spin" /> : <Phone size={16} />}
+                      {isConnecting ? 'Establishing Link...' : 'Start Video Call'}
+                    </button>
+                  </div>
+                ) : studioMode === 'resolution' ? (
+                  <div className="space-y-6 pt-6 animate-in fade-in h-full flex flex-col">
+                    <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
+                       <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Active Resolution Queue</label>
+                       <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                          {tickets.length > 0 ? tickets.map((t) => (
+                            <button 
+                              key={t.id}
+                              onClick={() => {
+                                setSelectedTicket(t);
+                                setSynthesisGoal(`Hi ${t.customerName}, this is Aura. I've personally reviewed your case regarding ${t.issueTitle}.`);
+                              }}
+                              className={`w-full p-4 rounded-xl border text-left transition-all group ${selectedTicket?.id === t.id ? 'bg-cyan-500/10 border-cyan-500/50' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
+                            >
+                               <div className="flex justify-between items-start mb-2">
+                                  <span className="text-[10px] font-black text-white group-hover:text-cyan-400">{t.ticketId}</span>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                               </div>
+                               <div className="space-y-1">
+                                  <p className="text-[9px] font-bold text-zinc-300 uppercase leading-none">{t.customerName}</p>
+                                  <p className="text-[8px] text-zinc-500 font-mono">{t.customerEmail}</p>
+                               </div>
+                               <div className="mt-3 p-2 rounded-lg bg-black/40 border border-white/5">
+                                  <p className="text-[8px] text-zinc-400 font-medium italic line-clamp-2">" {t.issueSummary} "</p>
+                               </div>
+                            </button>
+                          )) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-20">
+                               <Clock size={32} />
+                               <p className="text-[10px] font-bold uppercase mt-4">Queue is empty</p>
+                            </div>
+                          )}
+                       </div>
+                    </div>
+
+                    {selectedTicket && (
+                      <div className="space-y-4 pt-4 border-t border-white/5 animate-in slide-in-from-bottom-4 duration-500">
+                         <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Neural Response Prompt</label>
+                            <textarea 
+                              value={synthesisGoal}
+                              onChange={(e) => setSynthesisGoal(e.target.value)}
+                              className="w-full h-24 bg-black/40 border border-white/5 rounded-2xl p-4 text-xs text-zinc-300 focus:outline-none focus:border-cyan-500/30 transition-all placeholder:text-zinc-800"
+                              placeholder="Write your final solution message here..."
+                            />
+                         </div>
+                         <button 
+                           onClick={handleGenerateResolution}
+                           disabled={isSynthesizing}
+                           className="w-full py-5 bg-cyan-500 text-black rounded-2xl font-black text-[11px] uppercase tracking-[0.3em] hover:bg-cyan-400 transition-all flex items-center justify-center gap-3 shadow-xl shadow-cyan-500/20 active:scale-95"
+                         >
+                           {isSynthesizing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                           {isSynthesizing ? 'Rendering Hyperframe...' : 'Generate & Send Video'}
+                         </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-6 pt-6">
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Context & Goals</label>
+                       <textarea 
+                         value={synthesisGoal}
+                         onChange={(e) => setSynthesisGoal(e.target.value)}
+                         placeholder="What should Aura talk about?"
+                         className="w-full h-32 bg-black/40 border border-white/5 rounded-2xl p-4 text-xs text-zinc-300 focus:outline-none focus:border-cyan-500/30 transition-all"
+                       />
+                    </div>
+                    <button className="w-full py-5 bg-zinc-800 text-zinc-500 rounded-2xl font-black text-[11px] uppercase tracking-[0.3em] cursor-not-allowed">
+                      Batch Rendering Offline
+                    </button>
+                  </div>
+                )}
               </div>
            </div>
         </div>
 
-        {/* Renderer Preview */}
-        <div className="lg:col-span-7 space-y-8 flex flex-col">
-           <div className="flex-1 glass-card p-4 rounded-3xl flex flex-col">
-              <div className="flex justify-between items-center px-4 py-2 border-b border-white/5 mb-4">
-                 <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em]">HyperFrames Renderer</h3>
-                 <div className="flex items-center gap-2 text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
-                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Engine Idle
-                 </div>
-              </div>
+        {/* MAIN DISPLAY (8 COLS) */}
+        <div className="lg:col-span-8 relative">
+           <div className="glass-card rounded-3xl overflow-hidden h-full border border-white/5 bg-[#090b14] flex flex-col">
               
-              <div className="flex-1 bg-black/50 rounded-2xl border border-white/5 flex items-center justify-center relative overflow-hidden group">
-                 {/* Empty State */}
-                 <div className="text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto text-zinc-700 group-hover:text-cyan-500 transition-colors">
-                       <Video size={24} />
-                    </div>
-                    <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">No Composition Loaded</p>
-                 </div>
-              </div>
-
-               <div className="mt-4 px-4 py-3 bg-white/5 rounded-xl flex justify-between items-center">
-                  <div className="space-y-1">
-                     <p className="text-[10px] font-bold text-zinc-300 uppercase tracking-widest">Render Queue</p>
-                     <p className="text-[9px] font-mono text-zinc-600">{videoJobs.filter((j: any) => j.status === 'PROCESSING').length} Active Jobs</p>
-                  </div>
-                  <button 
-                     onClick={handleExportVideo}
-                     disabled={isExporting || htmlCode.includes('Awaiting AI Generation')}
-                     className={`px-6 py-2 font-bold text-[9px] uppercase tracking-widest rounded-lg flex items-center gap-2 transition-all
-                        ${isExporting || htmlCode.includes('Awaiting AI Generation') 
-                           ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
-                           : 'bg-cyan-500 text-black hover:bg-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
-                        }`}
+              {/* Call Overlay UI */}
+              <AnimatePresence>
+                {isInCall ? (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 z-20 flex flex-col"
                   >
-                     {isExporting ? <Loader2 size={12} className="animate-spin" /> : <Video size={12} />}
-                     {isExporting ? 'Submitting...' : 'Render MP4'}
-                  </button>
-               </div>
-            </div>
+                    {/* Call Header */}
+                    <div className="p-8 flex justify-between items-start bg-gradient-to-b from-black/80 to-transparent">
+                       <div className="flex items-center gap-4">
+                          <div className="px-3 py-1 bg-red-500 text-white text-[9px] font-black uppercase rounded-full animate-pulse">Live Call</div>
+                          <div className="text-white">
+                             <p className="text-lg font-bold tracking-tighter uppercase">{activeAgent?.name || 'AURA / ALPHA'}</p>
+                             <p className="text-[10px] font-mono text-zinc-400">Secure Neural Stream • 1080p</p>
+                          </div>
+                       </div>
+                       <button 
+                         onClick={() => { setIsInCall(false); setEmbedUrl(null); }}
+                         className="w-12 h-12 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors shadow-2xl"
+                       >
+                          <X size={24} />
+                       </button>
+                    </div>
 
-             {/* Recent Renders */}
-            <div className="glass-card rounded-2xl overflow-hidden">
-               <div className="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
-                  <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Recent Exports</h3>
-                  <div className="flex gap-1">
-                     {(['ALL', 'PROCESSING', 'COMPLETED', 'FAILED'] as const).map(status => (
-                        <button
-                           key={status}
-                           onClick={() => setJobFilter(status)}
-                           className={`px-3 py-1 rounded text-[8px] font-bold uppercase tracking-widest transition-all ${
-                              jobFilter === status 
-                                 ? 'bg-white text-black' 
-                                 : 'text-zinc-600 hover:text-zinc-300'
-                           }`}
-                        >
-                           {status === 'ALL' ? 'All' : status.charAt(0) + status.slice(1).toLowerCase()}
-                        </button>
-                     ))}
-                  </div>
-               </div>
-               <div className="divide-y divide-white/5">
-                  {filteredJobs.map((job: any) => (
-                     <ExportRow key={job.id} job={job} />
-                  ))}
-                  {filteredJobs.length === 0 && (
-                     <div className="p-8 text-center text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
-                        {jobFilter === 'ALL' ? 'No Export History' : `No ${jobFilter.toLowerCase()} jobs`}
+                    {/* The Video Embed */}
+                    <div className="flex-1 bg-black">
+                       {embedUrl && (
+                         <iframe 
+                           src={embedUrl} 
+                           allow="microphone; camera" 
+                           className="w-full h-full border-none"
+                         />
+                       )}
+                    </div>
+
+                    {/* Call Controls Bar */}
+                    <div className="p-8 bg-gradient-to-t from-black/80 to-transparent flex justify-center gap-6">
+                       <ControlButton icon={<Mic size={20} />} active={true} />
+                       <ControlButton icon={<Video size={20} />} active={true} />
+                       <button 
+                         onClick={() => { setIsInCall(false); setEmbedUrl(null); }}
+                         className="px-10 py-4 bg-red-500 text-white rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-red-600 transition-all flex items-center gap-3"
+                       >
+                          End Session
+                       </button>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-20 space-y-8">
+                     <div className="relative">
+                        <div className="w-32 h-32 rounded-full border border-cyan-500/30 flex items-center justify-center bg-cyan-500/5">
+                           <Video size={40} className="text-cyan-500/40" />
+                        </div>
+                        <div className="absolute inset-0 rounded-full border border-cyan-500/20 animate-ping" />
                      </div>
-                  )}
-               </div>
-            </div>
-         </div>
+                     <div className="space-y-3">
+                        <h3 className="text-2xl font-bold text-white tracking-tighter uppercase">Neural Stream Ready</h3>
+                        <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed">
+                          Aura is waiting for a secure connection. Select a mode on the left to begin face-to-face interaction or video synthesis.
+                        </p>
+                     </div>
+                     <div className="grid grid-cols-3 gap-8 pt-8 border-t border-white/5 w-full">
+                        <StatusMetric label="Bandwidth" value="1.2 Gbps" />
+                        <StatusMetric label="Latency" value="48ms" />
+                        <StatusMetric label="Encryption" value="AES-256" />
+                     </div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Background Scanner Grid */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] scale-150" />
+           </div>
+        </div>
       </div>
     </div>
   )
 }
 
-function ExportRow({ job }: { job: any }) {
-  const isProcessing = job.status === 'PROCESSING';
-  const isFailed = job.status === 'FAILED';
-
+function ModeButton({ icon, title, desc, active, onClick }: any) {
   return (
-    <div className="px-6 py-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors group">
-       <div className="flex items-center gap-4">
-          <div className={`w-10 h-10 rounded-lg border flex items-center justify-center transition-colors
-             ${isProcessing ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 
-               isFailed ? 'bg-red-500/10 border-red-500/20 text-red-500' : 
-               'bg-zinc-900 border-white/5 text-zinc-600 group-hover:text-cyan-400'}`}
-          >
-             {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />}
-          </div>
-          <div>
-             <p className="text-[11px] font-bold text-zinc-300">{job.title}</p>
-             <p className="text-[9px] font-mono text-zinc-600 flex items-center gap-2 mt-1">
-                <Clock size={10} /> {job.duration} • {new Date(job.createdAt).toLocaleDateString()}
-             </p>
-          </div>
+    <button 
+      onClick={onClick}
+      className={`p-6 rounded-2xl border text-left transition-all space-y-4 group ${active ? 'bg-white border-white' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
+    >
+       <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${active ? 'bg-black text-white' : 'bg-white/5 text-zinc-500 group-hover:text-white'}`}>
+          {icon}
        </div>
-       <div className="flex gap-2 items-center">
-          {isProcessing && <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest px-3">Rendering...</span>}
-          {isFailed && <span className="text-[9px] font-bold text-red-500 uppercase tracking-widest px-3">Failed</span>}
-          
-          {job.funnelUrl && !isProcessing && !isFailed && (
-             <a href={job.funnelUrl} target="_blank" className="p-2 rounded-lg border border-white/5 hover:bg-cyan-500 hover:text-black transition-colors" title="Open Funnel">
-                <Globe size={14} className="text-zinc-400 hover:text-black" />
-             </a>
-          )}
-          {job.videoUrl && (
-             <a href={job.videoUrl} target="_blank" className="p-2 rounded-lg border border-cyan-500/30 hover:bg-cyan-500 hover:text-black text-cyan-400 transition-colors" title="Download MP4">
-                <Download size={14} className="inherit" />
-             </a>
-          )}
+       <div>
+          <h4 className={`text-[11px] font-black uppercase tracking-widest ${active ? 'text-black' : 'text-white'}`}>{title}</h4>
+          <p className={`text-[9px] font-bold uppercase mt-1 ${active ? 'text-zinc-600' : 'text-zinc-500'}`}>{desc}</p>
        </div>
+    </button>
+  )
+}
+
+function ControlButton({ icon, active }: any) {
+  return (
+    <button className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${active ? 'bg-white/10 text-white border border-white/20 hover:bg-white/20' : 'bg-zinc-800 text-zinc-500'}`}>
+       {icon}
+    </button>
+  )
+}
+
+function StatusMetric({ label, value }: any) {
+  return (
+    <div className="space-y-1">
+       <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{label}</p>
+       <p className="text-sm font-bold text-white tracking-tight">{value}</p>
     </div>
   )
 }

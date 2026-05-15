@@ -9,11 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@fal-ai/serverless-client": "^0.15.0",
     "@heygen/liveavatar-web-sdk": "^0.0.18",
     "@prisma/client": "^5.22.0",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^3.0.3",
     "framer-motion": "^12.38.0",
+    "groq-sdk": "^1.2.0",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
+    "next-auth": "^4.24.14",
     "openai": "^6.37.0",
     "posthog-js": "^1.373.4",
     "posthog-node": "^5.34.1",

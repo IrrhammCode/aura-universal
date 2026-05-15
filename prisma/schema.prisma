@@ -8,17 +8,19 @@ datasource db {
 }
 
 model Organization {
-  id           String    @id @default(cuid())
+  id           String           @id @default(cuid())
   name         String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  users        User[]
-  settings     Settings?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
   agents       Agent[]
-  documents    Document[]
-  videos       VideoJob[]
-  logs         InteractionLog[]
   chatMessages ChatMessage[]
+  documents    Document[]
+  logs         InteractionLog[]
+  leads        Lead[]
+  settings     Settings?
+  users        User[]
+  videos       VideoJob[]
+  tickets      ServiceTicket[]
 }
 
 model User {
@@ -26,101 +28,130 @@ model User {
   email          String       @unique
   name           String?
   role           String       @default("MEMBER")
-  organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
   createdAt      DateTime     @default(now())
+  avatar         String?
+  passwordHash   String?
+  organization   Organization @relation(fields: [organizationId], references: [id])
 }
 
 model Settings {
   id                String       @id @default(cuid())
-  organization      Organization @relation(fields: [organizationId], references: [id])
   organizationId    String       @unique
-  
-  // API Keys
   heygenKey         String?
   elevenLabsKey     String?
   falKey            String?
   openAiKey         String?
-  
-  // Brand Kit
   companyLogo       String?
   primaryColor      String       @default("#06b6d4")
   calendlyUrl       String?
-  
-  // Security
   twoFactorAuth     Boolean      @default(true)
   restrictedRegions String       @default("None")
-  
   updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id])
 }
 
 model Agent {
+  id              String       @id @default(cuid())
+  organizationId  String
+  name            String
+  avatarId        String?
+  voiceId         String?
+  instructions    String?
+  templateType    String?
+  themeColor      String       @default("#06b6d4")
+  tone            Int          @default(50)
+  empathy         Int          @default(50)
+  depth           Int          @default(50)
+  createdAt       DateTime     @default(now())
+  logoUrl         String?
+  welcomeVideoUrl String?
+  organization    Organization @relation(fields: [organizationId], references: [id])
+}
+
+model Lead {
   id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
-  name           String
-  avatarId       String?      // HeyGen Avatar ID
-  voiceId        String?      // ElevenLabs Voice ID
-  tone           Int          @default(50)
-  empathy        Int          @default(50)
-  depth          Int          @default(50)
+  email          String?
+  name           String?
+  phone          String?
+  status         String       @default("NEW")
+  sourceAgentId  String?
+  sessionId      String?
+  lastMessage    String?
+  isPaused       Boolean      @default(false)
   createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
 }
 
 model Document {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  id             String          @id @default(cuid())
   organizationId String
   title          String
   url            String?
   size           String?
-  vectors        Int          @default(0)
+  vectors        Int             @default(0)
+  createdAt      DateTime        @default(now())
   content        String?
+  organization   Organization    @relation(fields: [organizationId], references: [id])
   chunks         DocumentChunk[]
-  createdAt      DateTime     @default(now())
 }
 
 model DocumentChunk {
-  id             String       @id @default(cuid())
-  document       Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  documentId     String
-  content        String
-  embedding      String       // Stored as JSON stringified Float[]
-  createdAt      DateTime     @default(now())
+  id         String   @id @default(cuid())
+  documentId String
+  content    String
+  embedding  String
+  createdAt  DateTime @default(now())
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
 model VideoJob {
   id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
   title          String
   duration       String
   htmlContent    String?
   funnelUrl      String?
-  heygenId       String?      // ID returned by HeyGen API for polling
-  videoUrl       String?      // Final MP4 URL
-  status         String       @default("PROCESSING") // PROCESSING, COMPLETED, FAILED
+  heygenId       String?
+  videoUrl       String?
+  status         String       @default("PROCESSING")
   createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
 }
 
 model InteractionLog {
   id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
   input          String
   response       String
   hasVision      Boolean      @default(false)
   time           String
   createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
 }
 
 model ChatMessage {
   id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
-  agentId        String       // Which agent this conversation belongs to
-  role           String       // 'user' or 'agent'
+  agentId        String
+  role           String
   content        String
   hasImage       Boolean      @default(false)
   createdAt      DateTime     @default(now())
+  sessionId      String?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+model ServiceTicket {
+  id             String       @id @default(cuid())
+  organizationId String
+  ticketId       String       @unique
+  customerEmail  String?
+  customerName   String?
+  issueTitle     String
+  issueSummary   String?
+  issueImage     String?
+  status         String       @default("PENDING")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
 }

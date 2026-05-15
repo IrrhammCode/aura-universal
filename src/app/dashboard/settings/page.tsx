@@ -1,7 +1,8 @@
 'use client'
 
-import { Settings2, Key, Bell, Shield, Wallet, Globe, Loader2, CheckCircle2 } from 'lucide-react'
+import { Settings2, Key, Bell, Shield, Wallet, Globe, Loader2, CheckCircle2, Zap } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 
 import { useAura } from '@/context/AuraContext'
 
@@ -100,7 +101,13 @@ export default function SettingsPage() {
             </div>
          </SettingsGroup>
 
-         <SettingsGroup title="API Integration">
+         <SettingsGroup title="Neural Infrastructure (BYOK)">
+            <div className="p-6 m-8 mt-0 rounded-2xl bg-cyan-500/5 border border-cyan-500/10 flex gap-4 items-start">
+               <Zap size={20} className="text-cyan-500 shrink-0 mt-1" />
+               <p className="text-[10px] text-zinc-400 leading-relaxed font-medium">
+                  Aura uses a <b>Bring Your Own Key</b> model. Your keys are encrypted at rest. Use <code className="text-cyan-500">gpt-4o</code> for optimal reasoning and vision performance.
+               </p>
+            </div>
             <SettingsInput icon={<Key size={16}/>} label="HeyGen API Key" value={settings.heygenKey || ''} onChange={(e: any) => updateSetting('heygenKey', e.target.value)} type="password" />
             <SettingsInput icon={<Key size={16}/>} label="ElevenLabs Key" value={settings.elevenLabsKey || ''} onChange={(e: any) => updateSetting('elevenLabsKey', e.target.value)} type="password" />
             <SettingsInput icon={<Key size={16}/>} label="Fal.ai Key" value={settings.falKey || ''} onChange={(e: any) => updateSetting('falKey', e.target.value)} type="password" />
