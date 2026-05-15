@@ -8,10 +8,10 @@ async function main() {
 
   // 1. Create Default Organization
   const org = await prisma.organization.upsert({
-    where: { id: 'aura-neural-org' },
+    where: { id: 'org_default' },
     update: {},
     create: {
-      id: 'aura-neural-org',
+      id: 'org_default',
       name: 'AURA Neural Systems',
     },
   })

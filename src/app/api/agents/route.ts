@@ -8,6 +8,7 @@ export async function GET() {
     const agents = await prisma.agent.findMany({ where: { organizationId: ORG_ID } });
     return NextResponse.json(agents);
   } catch (error) {
+    console.error('[AGENTS_GET_ERROR]:', error);
     return NextResponse.json({ error: 'Failed to fetch agents' }, { status: 500 });
   }
 }
