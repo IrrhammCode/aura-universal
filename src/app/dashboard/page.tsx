@@ -22,7 +22,7 @@ export default function Dashboard() {
     e.preventDefault()
     if (activeAgent) return // Already deployed
     const id = deployId || 'AURA-X'
-    setActiveAgent({ id: id.toLowerCase(), name: id, tone: 70, empathy: 50 })
+    setActiveAgent({ id: id.toLowerCase(), name: id, tone: 70, empathy: 50, depth: 50 })
     addTelemetryLog({ source: 'DEPLOYMENT', trace: `Initiating Node ${id} in US-EAST-1 (${deployPersona})`, status: 'PROCESSING' })
     setTimeout(() => {
        addTelemetryLog({ source: 'SYSTEM', trace: `Node ${id} Online`, status: 'SUCCESS' })

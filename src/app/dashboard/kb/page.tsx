@@ -77,11 +77,20 @@ export default function KnowledgeBase() {
                        <KBItem key={doc.id} title={doc.title} docs={1} size={doc.size} url={doc.url} />
                     ))
                  ) : (
-                    <div className="py-12 text-center flex flex-col items-center justify-center space-y-3">
-                       <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
-                          <Database size={16} className="text-zinc-600" />
+                    <div className="py-20 flex flex-col items-center justify-center space-y-6">
+                       <div className="relative">
+                          <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full animate-pulse" />
+                          <div className="w-20 h-20 relative rounded-2xl bg-gradient-to-br from-zinc-800 to-black border border-white/10 flex items-center justify-center shadow-2xl">
+                             <Database size={32} className="text-zinc-600" />
+                             <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-500/50 flex items-center justify-center backdrop-blur-md">
+                               <FileText size={14} className="text-cyan-400" />
+                             </div>
+                          </div>
                        </div>
-                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">No Collections Found</p>
+                       <div className="text-center space-y-2">
+                          <p className="text-sm font-bold text-white tracking-wide">Knowledge Base Empty</p>
+                          <p className="text-xs text-zinc-500 max-w-[250px]">Upload a document to feed the vector engine. Your agents will automatically learn the content.</p>
+                       </div>
                     </div>
                  )}
               </div>

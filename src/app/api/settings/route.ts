@@ -1,30 +1,30 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { prisma } from '@/lib/prisma';
 
-const dataDir = path.join(process.cwd(), 'data');
-const settingsPath = path.join(dataDir, 'settings.json');
-
-const defaultSettings = {
-  heygenKey: '',
-  elevenLabsKey: '',
-  falKey: '',
-  openAiKey: '',
-  twoFactorAuth: true,
-  restrictedRegions: 'None'
-};
+const ORG_ID = "org_default"; // Mock single tenant for now
 
 export async function GET() {
   try {
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-    
-    if (!fs.existsSync(settingsPath)) {
-      fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
-      return NextResponse.json(defaultSettings);
+    // Ensure mock org exists
+    let org = await prisma.organization.findUnique({ where: { id: ORG_ID } });
+    if (!org) {
+      org = await prisma.organization.create({ data: { id: ORG_ID, name: "Default Org" } });
     }
 
-    const fileData = fs.readFileSync(settingsPath, 'utf8');
-    return NextResponse.json(JSON.parse(fileData));
+    let settings = await prisma.settings.findUnique({ where: { organizationId: ORG_ID } });
+    
+    if (!settings) {
+      settings = await prisma.settings.create({
+        data: {
+          organizationId: ORG_ID,
+          twoFactorAuth: true,
+          restrictedRegions: 'None',
+          primaryColor: '#06b6d4',
+        }
+      });
+    }
+
+    return NextResponse.json(settings);
   } catch (error) {
     console.error('Settings GET Error:', error);
     return NextResponse.json({ error: 'Failed to load settings' }, { status: 500 });
@@ -34,16 +34,39 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const newSettings = await req.json();
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
     
-    // Merge with existing settings or defaults
-    let currentSettings = { ...defaultSettings };
-    if (fs.existsSync(settingsPath)) {
-      currentSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    // Ensure mock org exists
+    let org = await prisma.organization.findUnique({ where: { id: ORG_ID } });
+    if (!org) {
+      org = await prisma.organization.create({ data: { id: ORG_ID, name: "Default Org" } });
     }
 
-    const updatedSettings = { ...currentSettings, ...newSettings };
-    fs.writeFileSync(settingsPath, JSON.stringify(updatedSettings, null, 2));
+    const updatedSettings = await prisma.settings.upsert({
+      where: { organizationId: ORG_ID },
+      update: {
+        heygenKey: newSettings.heygenKey,
+        elevenLabsKey: newSettings.elevenLabsKey,
+        falKey: newSettings.falKey,
+        openAiKey: newSettings.openAiKey,
+        twoFactorAuth: newSettings.twoFactorAuth ?? true,
+        restrictedRegions: newSettings.restrictedRegions ?? 'None',
+        companyLogo: newSettings.companyLogo,
+        primaryColor: newSettings.primaryColor ?? '#06b6d4',
+        calendlyUrl: newSettings.calendlyUrl
+      },
+      create: {
+        organizationId: ORG_ID,
+        heygenKey: newSettings.heygenKey,
+        elevenLabsKey: newSettings.elevenLabsKey,
+        falKey: newSettings.falKey,
+        openAiKey: newSettings.openAiKey,
+        twoFactorAuth: newSettings.twoFactorAuth ?? true,
+        restrictedRegions: newSettings.restrictedRegions ?? 'None',
+        companyLogo: newSettings.companyLogo,
+        primaryColor: newSettings.primaryColor ?? '#06b6d4',
+        calendlyUrl: newSettings.calendlyUrl
+      }
+    });
 
     // Optional: If we want to dynamically override process.env for the current Node process
     if (updatedSettings.heygenKey) process.env.NEXT_PUBLIC_HEYGEN_API_KEY = updatedSettings.heygenKey;

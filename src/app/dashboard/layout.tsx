@@ -4,10 +4,13 @@ import { AuraLogo } from '@/components/AuraLogo'
 import { AuraProvider } from '@/context/AuraContext'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Network, Server } from 'lucide-react'
+import { Toaster } from 'sonner'
+import { BackgroundEffects } from '@/components/BackgroundEffects'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#090b14] text-slate-300 font-sans flex">
+    <div className="min-h-screen bg-[#090b14] text-slate-300 font-sans flex relative">
+      <BackgroundEffects />
       {/* Sidebar */}
       <aside className="w-64 border-r border-slate-800 bg-[#0c101a] flex flex-col hidden md:flex sticky top-0 h-screen">
         <div className="h-20 flex items-center px-6 gap-3 border-b border-slate-800/50">
@@ -37,7 +40,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto relative">
+        <Toaster theme="dark" position="bottom-right" toastOptions={{ style: { background: '#0c101a', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' } }} />
         <AuraProvider>
           <CommandPalette />
           {children}

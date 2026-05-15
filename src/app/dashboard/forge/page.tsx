@@ -21,6 +21,12 @@ export default function AgentForge() {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null)
   const [isInitializingLiveAvatar, setIsInitializingLiveAvatar] = useState(false)
 
+  const [voiceList, setVoiceList] = useState<any[]>([
+     { id: 'Adam', name: 'Adam - Professional', desc: 'Deep, authoritative, stable resonance.' },
+     { id: 'Rachel', name: 'Rachel - Warm', desc: 'Approachable, clear, and empathetic.' },
+     { id: 'Domi', name: 'Domi - Dynamic', desc: 'Energetic, fast-paced, and engaging.' }
+  ]);
+
   const startSimulation = async () => {
     setIsTesting(true);
     setEmbedUrl(null);
@@ -40,6 +46,32 @@ export default function AgentForge() {
       setIsInitializingLiveAvatar(false);
     }
   }
+
+  useEffect(() => {
+    const fetchVoices = async () => {
+      try {
+        const apiKey = process.env.ELEVENLABS_API_KEY;
+        if (!apiKey || apiKey === '••••••••••••••••') return;
+        
+        const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+          headers: { 'xi-api-key': apiKey }
+        });
+        const json = await res.json();
+        if (json.voices && json.voices.length > 0) {
+           const mappedVoices = json.voices.slice(0, 3).map((v: any) => ({
+             id: v.voice_id,
+             name: v.name,
+             desc: Object.entries(v.labels || {}).map(([k, val]) => `${val}`).join(', ') || 'Custom Voice'
+           }));
+           setVoiceList(mappedVoices);
+           setVoice(mappedVoices[0].id);
+        }
+      } catch (err) {
+        console.error("Failed to fetch ElevenLabs voices:", err);
+      }
+    };
+    fetchVoices();
+  }, []);
 
   const [avatarList, setAvatarList] = useState<any[]>([
     { id: 'aura-x', name: 'Aura-X', preview_url: null },
@@ -289,24 +321,19 @@ export default function AgentForge() {
           <div className="glass-card p-8 space-y-6">
             <SectionHeader icon={<Waves size={16}/>} title="Vocal Synthesis (ElevenLabs)" />
             <div className="space-y-3">
-               {[
-                 { id: 'Adam', name: 'Adam - Professional', desc: 'Deep, authoritative, stable resonance.' },
-                 { id: 'Rachel', name: 'Rachel - Warm', desc: 'Approachable, clear, and empathetic.' },
-                 { id: 'Domi', name: 'Domi - Dynamic', desc: 'Energetic, fast-paced, and engaging.' }
-               ].map((v) => (
+               {voiceList.map((v) => (
                  <div 
                    key={v.id}
                    onClick={() => setVoice(v.id)}
                    className={`flex items-center gap-6 p-4 rounded-2xl border cursor-pointer transition-all ${voice === v.id ? 'bg-cyan-500/10 border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
                  >
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors ${voice === v.id ? 'bg-cyan-500 text-black shadow-cyan-500/20' : 'bg-zinc-800 text-zinc-500'}`}>
-                       <Play size={20} fill="currentColor" />
+                    <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all ${voice === v.id ? 'border-cyan-500 bg-cyan-500/20 text-cyan-500' : 'border-transparent bg-white/5 text-zinc-600'}`}>
+                       <Mic size={14} />
                     </div>
-                    <div className="flex-1 space-y-1">
-                       <p className={`text-xs font-bold uppercase tracking-widest ${voice === v.id ? 'text-cyan-400' : 'text-white'}`}>{v.name}</p>
-                       <p className="text-[10px] text-zinc-500 italic">{v.desc}</p>
+                    <div>
+                       <p className={`text-[11px] font-bold uppercase tracking-widest ${voice === v.id ? 'text-cyan-400' : 'text-white'}`}>{v.name}</p>
+                       <p className="text-[9px] text-zinc-500 uppercase tracking-widest mt-1">{v.desc}</p>
                     </div>
-                    {voice === v.id && <CheckCircle size={16} className="text-cyan-500" />}
                  </div>
                ))}
             </div>

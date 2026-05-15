@@ -1,23 +1,16 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { prisma } from '@/lib/prisma';
+import OpenAI from 'openai';
+import { chunkText } from '@/lib/vector';
 
-// Local file-based DB path for Knowledge Base metadata
-const dataDir = path.join(process.cwd(), 'data');
-const dbPath = path.join(dataDir, 'kb.json');
-
-// Ensure data directory and file exist
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir);
-}
-if (!fs.existsSync(dbPath)) {
-  fs.writeFileSync(dbPath, JSON.stringify([]));
-}
+const ORG_ID = "org_default";
 
 export async function GET() {
   try {
-    const fileData = fs.readFileSync(dbPath, 'utf8');
-    const docs = JSON.parse(fileData);
+    const docs = await prisma.document.findMany({
+      where: { organizationId: ORG_ID },
+      orderBy: { createdAt: 'desc' }
+    });
     return NextResponse.json(docs);
   } catch (error) {
     console.error('Error reading KB DB:', error);
@@ -29,20 +22,55 @@ export async function POST(req: Request) {
   try {
     const newDoc = await req.json();
     
-    const fileData = fs.readFileSync(dbPath, 'utf8');
-    const docs = JSON.parse(fileData);
+    let org = await prisma.organization.findUnique({ where: { id: ORG_ID } });
+    if (!org) {
+      org = await prisma.organization.create({ data: { id: ORG_ID, name: "Default Org" } });
+    }
     
-    // Simulate Vectorization delay and metadata enrichment
-    const enrichedDoc = {
-      ...newDoc,
-      id: newDoc.id || "DOC-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
-      vectors: Math.floor(Math.random() * 50000) + 10000, // Simulated vector count
-      uploadedAt: new Date().toISOString()
-    };
+    const content = newDoc.content || `This is a mock document content for ${newDoc.title}. It contains standard enterprise procedures and policy information.`;
     
-    docs.unshift(enrichedDoc);
+    // Chunk the text
+    const chunks = chunkText(content, 300);
     
-    fs.writeFileSync(dbPath, JSON.stringify(docs, null, 2));
+    // Create embeddings if OpenAI Key is available
+    const settings = await prisma.settings.findUnique({ where: { organizationId: ORG_ID } });
+    const apiKey = settings?.openAiKey || process.env.OPENAI_API_KEY;
+    
+    let chunkDataToSave: { content: string, embedding: string }[] = [];
+    
+    if (apiKey) {
+      const openai = new OpenAI({ apiKey });
+      
+      const response = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: chunks,
+      });
+      
+      chunkDataToSave = response.data.map((d, i) => ({
+        content: chunks[i],
+        embedding: JSON.stringify(d.embedding)
+      }));
+    } else {
+      // Mock embeddings for testing if no key provided
+      chunkDataToSave = chunks.map(c => ({
+        content: c,
+        embedding: JSON.stringify(Array(1536).fill(0).map(() => Math.random() - 0.5))
+      }));
+    }
+    
+    const enrichedDoc = await prisma.document.create({
+      data: {
+        organizationId: ORG_ID,
+        title: newDoc.title,
+        size: newDoc.size,
+        url: newDoc.url,
+        vectors: chunks.length,
+        content: content,
+        chunks: {
+          create: chunkDataToSave
+        }
+      }
+    });
     
     return NextResponse.json({ success: true, document: enrichedDoc });
   } catch (error) {

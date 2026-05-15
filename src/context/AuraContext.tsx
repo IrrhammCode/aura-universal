@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 
-type Document = { id?: string, title: string, size: string, vectors?: number, uploadedAt?: string, url?: string }
-type Agent = { id: string, name: string, tone: number, empathy: number }
+type Document = { id: string, title: string, size: string, vectors?: number, createdAt?: string, url?: string, content?: string }
+type Agent = { id: string, name: string, avatarId?: string, voiceId?: string, tone: number, empathy: number, depth: number }
 
 type TelemetryLog = { source: string, trace: string, status: 'SUCCESS' | 'PROCESSING' | 'ERROR', timestamp: string }
 type InteractionLog = { id: string, time: string, input: string, response: string, vision: string, hasImage: boolean }

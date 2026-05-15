@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Search, Filter, Download, ExternalLink, Image as ImageIcon, MessageSquare, Inbox } from 'lucide-react'
+import { Search, Filter, Download, ExternalLink, Image as ImageIcon, MessageSquare, Inbox, Eye } from 'lucide-react'
 import { useState } from 'react'
 
 import { useAura } from '@/context/AuraContext'
@@ -99,14 +99,20 @@ export default function InteractionLogs() {
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="py-24 text-center">
-                   <div className="flex flex-col items-center justify-center space-y-4">
-                      <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-                         <Inbox size={24} className="text-zinc-600" />
+                <td colSpan={5} className="py-32 text-center">
+                   <div className="flex flex-col items-center justify-center space-y-6">
+                      <div className="relative">
+                         <div className="absolute inset-0 bg-emerald-500/10 blur-xl rounded-full animate-pulse" />
+                         <div className="w-20 h-20 relative rounded-2xl bg-gradient-to-br from-zinc-800 to-black border border-white/10 flex items-center justify-center shadow-2xl">
+                            <Eye size={32} className="text-zinc-600" />
+                            <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center backdrop-blur-md">
+                              <Inbox size={14} className="text-emerald-400" />
+                            </div>
+                         </div>
                       </div>
-                      <div className="space-y-1">
-                         <p className="text-[11px] font-bold text-white uppercase tracking-widest">No Interaction Traces Found</p>
-                         <p className="text-[10px] text-zinc-500">The agent has not recorded any conversations yet.</p>
+                      <div className="text-center space-y-2">
+                         <p className="text-sm font-bold text-white tracking-wide">Telemetry Stream is Empty</p>
+                         <p className="text-xs text-zinc-500 max-w-[250px] mx-auto">Interact with the agent in the Forge to generate real-time interaction logs and visual context traces.</p>
                       </div>
                    </div>
                 </td>
@@ -119,7 +125,7 @@ export default function InteractionLogs() {
   )
 }
 
-function LogRow({ id, time, input, response, vision, hasImage }: any) {
+function LogRow({ id, time, input, response, vision, hasVision }: any) {
   return (
     <tr className="hover:bg-white/[0.01] transition-colors group">
       <td className="px-10 py-8">
@@ -130,16 +136,16 @@ function LogRow({ id, time, input, response, vision, hasImage }: any) {
       </td>
       <td className="px-10 py-8 max-w-sm">
         <div className="flex items-start gap-3">
-          {hasImage ? <ImageIcon size={14} className="text-cyan-500 mt-0.5 flex-shrink-0" /> : <MessageSquare size={14} className="text-zinc-600 mt-0.5 flex-shrink-0" />}
+          {hasVision ? <ImageIcon size={14} className="text-cyan-500 mt-0.5 flex-shrink-0" /> : <MessageSquare size={14} className="text-zinc-600 mt-0.5 flex-shrink-0" />}
           <p className="truncate line-clamp-2 text-zinc-300 font-bold tracking-tight">{input}</p>
         </div>
       </td>
-      <td className="px-10 py-8 max-w-md">
-        <p className="line-clamp-2 italic text-zinc-500">{response}</p>
+      <td className="px-10 py-8 max-w-sm">
+        <p className="truncate line-clamp-2 text-zinc-400 font-medium leading-relaxed">{response}</p>
       </td>
       <td className="px-10 py-8">
-        <span className={`px-2 py-1 rounded-[4px] text-[9px] font-black uppercase tracking-widest ${vision !== '-' ? 'bg-cyan-500/10 text-cyan-400' : 'bg-zinc-900 text-zinc-700'}`}>
-          {vision}
+        <span className={`px-2 py-1 rounded-[4px] text-[9px] font-black uppercase tracking-widest ${hasVision ? 'bg-cyan-500/10 text-cyan-400' : 'bg-zinc-900 text-zinc-700'}`}>
+          {hasVision ? 'PROCESSED' : 'N/A'}
         </span>
       </td>
       <td className="px-10 py-8 text-right">

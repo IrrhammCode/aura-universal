@@ -1,23 +1,15 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { prisma } from '@/lib/prisma';
 
-// Local file-based DB path
-const dataDir = path.join(process.cwd(), 'data');
-const dbPath = path.join(dataDir, 'logs.json');
-
-// Ensure data directory and file exist
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir);
-}
-if (!fs.existsSync(dbPath)) {
-  fs.writeFileSync(dbPath, JSON.stringify([]));
-}
+const ORG_ID = "org_default";
 
 export async function GET() {
   try {
-    const fileData = fs.readFileSync(dbPath, 'utf8');
-    const logs = JSON.parse(fileData);
+    const logs = await prisma.interactionLog.findMany({
+      where: { organizationId: ORG_ID },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
     return NextResponse.json(logs);
   } catch (error) {
     console.error('Error reading logs DB:', error);
@@ -29,24 +21,21 @@ export async function POST(req: Request) {
   try {
     const newLog = await req.json();
     
-    // Read current
-    const fileData = fs.readFileSync(dbPath, 'utf8');
-    const logs = JSON.parse(fileData);
-    
-    // Append new log (at the beginning to show newest first)
-    const enrichedLog = {
-      ...newLog,
-      id: newLog.id || "TRC-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
-      time: newLog.time || new Date().toLocaleTimeString()
-    };
-    
-    logs.unshift(enrichedLog);
-    
-    // Keep only last 100 to avoid massive files
-    const trimmedLogs = logs.slice(0, 100);
-    
-    // Save back to file
-    fs.writeFileSync(dbPath, JSON.stringify(trimmedLogs, null, 2));
+    // Ensure mock org exists
+    let org = await prisma.organization.findUnique({ where: { id: ORG_ID } });
+    if (!org) {
+      org = await prisma.organization.create({ data: { id: ORG_ID, name: "Default Org" } });
+    }
+
+    const enrichedLog = await prisma.interactionLog.create({
+      data: {
+        organizationId: ORG_ID,
+        input: newLog.input,
+        response: newLog.response,
+        hasVision: newLog.hasVision || false,
+        time: newLog.time || new Date().toLocaleTimeString()
+      }
+    });
     
     return NextResponse.json({ success: true, log: enrichedLog });
   } catch (error) {

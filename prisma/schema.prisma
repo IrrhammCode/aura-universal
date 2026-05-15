@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id           String    @id @default(cuid())
+  name         String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  users        User[]
+  settings     Settings?
+  agents       Agent[]
+  documents    Document[]
+  videos       VideoJob[]
+  logs         InteractionLog[]
+}
+
+model User {
+  id             String       @id @default(cuid())
+  email          String       @unique
+  name           String?
+  role           String       @default("MEMBER")
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  createdAt      DateTime     @default(now())
+}
+
+model Settings {
+  id                String       @id @default(cuid())
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  organizationId    String       @unique
+  
+  // API Keys
+  heygenKey         String?
+  elevenLabsKey     String?
+  falKey            String?
+  openAiKey         String?
+  
+  // Brand Kit
+  companyLogo       String?
+  primaryColor      String       @default("#06b6d4")
+  calendlyUrl       String?
+  
+  // Security
+  twoFactorAuth     Boolean      @default(true)
+  restrictedRegions String       @default("None")
+  
+  updatedAt         DateTime     @updatedAt
+}
+
+model Agent {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  avatarId       String?      // HeyGen Avatar ID
+  voiceId        String?      // ElevenLabs Voice ID
+  tone           Int          @default(50)
+  empathy        Int          @default(50)
+  depth          Int          @default(50)
+  createdAt      DateTime     @default(now())
+}
+
+model Document {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  title          String
+  url            String?
+  size           String?
+  vectors        Int          @default(0)
+  content        String?
+  chunks         DocumentChunk[]
+  createdAt      DateTime     @default(now())
+}
+
+model DocumentChunk {
+  id             String       @id @default(cuid())
+  document       Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId     String
+  content        String
+  embedding      String       // Stored as JSON stringified Float[]
+  createdAt      DateTime     @default(now())
+}
+
+model VideoJob {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  title          String
+  duration       String
+  htmlContent    String?
+  funnelUrl      String?
+  heygenId       String?      // ID returned by HeyGen API for polling
+  videoUrl       String?      // Final MP4 URL
+  status         String       @default("PROCESSING") // PROCESSING, COMPLETED, FAILED
+  createdAt      DateTime     @default(now())
+}
+
+model InteractionLog {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  input          String
+  response       String
+  hasVision      Boolean      @default(false)
+  time           String
+  createdAt      DateTime     @default(now())
+}

@@ -3,6 +3,8 @@
 import { Settings2, Key, Bell, Shield, Wallet, Globe, Loader2, CheckCircle2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
+import { toast } from 'sonner'
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState({
     heygenKey: '',
@@ -10,33 +12,49 @@ export default function SettingsPage() {
     falKey: '',
     openAiKey: '',
     twoFactorAuth: true,
-    restrictedRegions: 'None'
+    restrictedRegions: 'None',
+    companyLogo: '',
+    primaryColor: '#06b6d4',
+    calendlyUrl: ''
   })
   const [isSaving, setIsSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
-        if (!data.error) setSettings(data)
+        if (!data.error) {
+          // Ensure all fields have string fallbacks to avoid controlled/uncontrolled warnings
+          setSettings({
+            heygenKey: data.heygenKey || '',
+            elevenLabsKey: data.elevenLabsKey || '',
+            falKey: data.falKey || '',
+            openAiKey: data.openAiKey || '',
+            twoFactorAuth: data.twoFactorAuth ?? true,
+            restrictedRegions: data.restrictedRegions || 'None',
+            companyLogo: data.companyLogo || '',
+            primaryColor: data.primaryColor || '#06b6d4',
+            calendlyUrl: data.calendlyUrl || ''
+          })
+        }
       })
       .catch(err => console.error("Failed to load settings:", err))
   }, [])
 
   const handleSave = async () => {
     setIsSaving(true)
-    setSaved(false)
     try {
       await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
       })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
+      toast.success("System state synchronized successfully", {
+        description: "All API keys and brand kits have been saved.",
+      })
     } catch (err) {
       console.error("Failed to save settings:", err)
+      toast.error("Failed to synchronize state")
     } finally {
       setIsSaving(false)
     }
@@ -54,11 +72,23 @@ export default function SettingsPage() {
       </header>
 
       <div className="space-y-6">
+          <SettingsGroup title="Workspace Authentication">
+            <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl flex items-center justify-between">
+               <div className="space-y-1">
+                  <p className="text-[11px] font-bold text-white uppercase tracking-widest flex items-center gap-2"><Shield size={14} className="text-emerald-500" /> Multi-Tenant Workspace</p>
+                  <p className="text-[9px] text-zinc-500 uppercase tracking-widest">Your data is isolated in Workspace: <span className="text-cyan-500 font-mono">AURA-ORG-99X</span></p>
+               </div>
+               <button className="px-4 py-2 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-[10px] font-bold text-white uppercase tracking-widest">
+                 Manage Members
+               </button>
+            </div>
+         </SettingsGroup>
+
          <SettingsGroup title="API Integration">
-            <SettingsInput icon={<Key size={16}/>} label="HeyGen API Key" value={settings.heygenKey} onChange={(e: any) => updateSetting('heygenKey', e.target.value)} type="password" />
-            <SettingsInput icon={<Key size={16}/>} label="ElevenLabs Key" value={settings.elevenLabsKey} onChange={(e: any) => updateSetting('elevenLabsKey', e.target.value)} type="password" />
-            <SettingsInput icon={<Key size={16}/>} label="Fal.ai Key" value={settings.falKey} onChange={(e: any) => updateSetting('falKey', e.target.value)} type="password" />
-            <SettingsInput icon={<Key size={16}/>} label="OpenAI API Key" value={settings.openAiKey} onChange={(e: any) => updateSetting('openAiKey', e.target.value)} type="password" />
+            <SettingsInput icon={<Key size={16}/>} label="HeyGen API Key" value={settings.heygenKey || ''} onChange={(e: any) => updateSetting('heygenKey', e.target.value)} type="password" />
+            <SettingsInput icon={<Key size={16}/>} label="ElevenLabs Key" value={settings.elevenLabsKey || ''} onChange={(e: any) => updateSetting('elevenLabsKey', e.target.value)} type="password" />
+            <SettingsInput icon={<Key size={16}/>} label="Fal.ai Key" value={settings.falKey || ''} onChange={(e: any) => updateSetting('falKey', e.target.value)} type="password" />
+            <SettingsInput icon={<Key size={16}/>} label="OpenAI API Key" value={settings.openAiKey || ''} onChange={(e: any) => updateSetting('openAiKey', e.target.value)} type="password" />
          </SettingsGroup>
 
          <SettingsGroup title="Security">
@@ -71,16 +101,22 @@ export default function SettingsPage() {
                   <div className={`w-3 h-3 bg-white rounded-full transition-transform ${settings.twoFactorAuth ? 'translate-x-4' : 'translate-x-0'}`} />
                </div>
             </div>
-            <SettingsInput icon={<Globe size={16}/>} label="Restricted Regions" value={settings.restrictedRegions} onChange={(e: any) => updateSetting('restrictedRegions', e.target.value)} />
+            <SettingsInput icon={<Globe size={16}/>} label="Restricted Regions" value={settings.restrictedRegions || ''} onChange={(e: any) => updateSetting('restrictedRegions', e.target.value)} />
+         </SettingsGroup>
+
+         <SettingsGroup title="Enterprise Brand Kit (B2B)">
+            <SettingsInput icon={<Globe size={16}/>} label="Company Logo URL" value={settings.companyLogo || ''} onChange={(e: any) => updateSetting('companyLogo', e.target.value)} placeholder="https://example.com/logo.png" />
+            <SettingsInput icon={<Wallet size={16}/>} label="Brand Hex Color" value={settings.primaryColor || ''} onChange={(e: any) => updateSetting('primaryColor', e.target.value)} placeholder="#06b6d4" />
+            <SettingsInput icon={<Bell size={16}/>} label="Calendly Link" value={settings.calendlyUrl || ''} onChange={(e: any) => updateSetting('calendlyUrl', e.target.value)} placeholder="https://calendly.com/your-org" />
          </SettingsGroup>
          
          <button 
            onClick={handleSave}
            disabled={isSaving}
-           className={`w-full py-5 font-bold text-[10px] uppercase tracking-[0.3em] rounded-2xl transition-all flex justify-center items-center gap-3 ${saved ? 'bg-emerald-500 text-black' : 'bg-white text-black hover:bg-zinc-200'}`}
+           className="w-full py-5 font-bold text-[10px] uppercase tracking-[0.3em] rounded-2xl transition-all flex justify-center items-center gap-3 bg-white text-black hover:bg-zinc-200"
          >
-            {isSaving ? <Loader2 size={16} className="animate-spin" /> : saved ? <CheckCircle2 size={16} /> : null}
-            {isSaving ? 'Synchronizing State...' : saved ? 'State Saved' : 'Save System State'}
+            {isSaving ? <Loader2 size={16} className="animate-spin" /> : null}
+            {isSaving ? 'Synchronizing State...' : 'Save System State'}
          </button>
       </div>
     </div>
@@ -100,7 +136,7 @@ function SettingsGroup({ title, children }: any) {
   )
 }
 
-function SettingsInput({ icon, label, value, onChange, type = "text" }: any) {
+function SettingsInput({ icon, label, value, onChange, type = "text", placeholder = "••••••••••••••••" }: any) {
   return (
     <div className="px-8 py-4 flex flex-col md:flex-row md:items-center justify-between hover:bg-white/[0.01] transition-all gap-4">
        <div className="flex items-center gap-4 whitespace-nowrap">
@@ -109,9 +145,9 @@ function SettingsInput({ icon, label, value, onChange, type = "text" }: any) {
        </div>
        <input 
           type={type}
-          value={value}
+          value={value ?? ""}
           onChange={onChange}
-          placeholder="••••••••••••••••"
+          placeholder={placeholder}
           className="bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-[10px] font-mono text-cyan-400 focus:outline-none focus:border-cyan-500/50 w-full md:w-64 transition-colors"
        />
     </div>
