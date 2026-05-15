@@ -7,7 +7,8 @@ import path from 'path';
 import fs from 'fs';
 
 const ORG_ID = "org_default";
-const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+// Use /tmp for Vercel read-only filesystem compatibility
+const uploadDir = '/tmp';
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 export async function POST(req: Request) {
