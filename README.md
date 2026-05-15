@@ -53,6 +53,31 @@ AURA is built on a "Bring Your Own Key" (BYOK) infrastructure, integrating best-
 
 ---
 
+## 🔍 Proof of Implementation (Code References)
+
+For internal review or hackathon judging, here is the source code proof for our core multimodal integrations:
+
+### ⚡ HeyGen Streaming Engine
+The core logic for real-time lip-sync and session management is encapsulated in the `HeyGenManager` class.
+*   **Implementation**: [`src/lib/heygen.ts`](file:///Users/irham/Documents/code/aura-platform/src/lib/heygen.ts)
+*   **Live Simulation Trigger**: See the `handleStartSimulation` function in [`src/app/dashboard/forge/page.tsx`](file:///Users/irham/Documents/code/aura-platform/src/app/dashboard/forge/page.tsx).
+
+### 🎙️ ElevenLabs Vocal Engine
+We utilize ElevenLabs for high-fidelity vocal synthesis, including emotion-aware voice selection.
+*   **Integration Point**: The voice listing and retrieval logic is found in [`src/app/api/voices/route.ts`](file:///Users/irham/Documents/code/aura-platform/src/app/api/voices/route.ts).
+*   **Voice Processing**: Logic for determined vocal output during chat is in [`src/app/api/chat/route.ts`](file:///Users/irham/Documents/code/aura-platform/src/app/api/chat/route.ts).
+
+### 👁️ Fal.ai Visual Intelligence
+Our multimodal agents "see" user problems through Fal.ai's vision processing engine.
+*   **Image Analysis Logic**: Found within the chat route handler at [`src/app/api/chat/route.ts`](file:///Users/irham/Documents/code/aura-platform/src/app/api/chat/route.ts).
+
+### 📹 Deterministic Studio (Hyperframes)
+The automated resolution receipts are rendered using a side-by-side side HUD template.
+*   **Rendering Logic**: Managed in [`src/app/api/studio/route.ts`](file:///Users/irham/Documents/code/aura-platform/src/app/api/studio/route.ts).
+*   **HTML Template**: The dynamic video scene structure is defined in the Studio API's prompt/template section.
+
+---
+
 ## ☁️ Vercel Deployment Guide
 
 To deploy AURA on Vercel, follow these steps:
