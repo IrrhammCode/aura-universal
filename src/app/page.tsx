@@ -3,6 +3,7 @@
 import { motion, useScroll, useSpring, useTransform, AnimatePresence } from 'framer-motion'
 import { Eye, Brain, Mic, Video, Camera, Activity, Shield, Zap, ArrowRight, Code, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { AuraLogo } from '@/components/AuraLogo'
 import { useState, useEffect } from 'react'
 
