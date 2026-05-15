@@ -5,16 +5,30 @@ import { useAura } from '@/context/AuraContext'
 import { useState } from 'react'
 
 export default function VideoStudio() {
-  const { documents, activeAgent } = useAura()
+  const { documents, activeAgent, renderJobs, addRenderJob, addTelemetryLog } = useAura()
   const [isSynthesizing, setIsSynthesizing] = useState(false)
   const [htmlCode, setHtmlCode] = useState('<!-- Awaiting AI Generation -->\n<div class="hyperframe-scene" data-duration="30s">\n  <heygen-avatar agent="aura-x" />\n</div>')
 
   const handleSynthesize = () => {
+    if (!documents.length) {
+       alert("No knowledge base documents found. Please sync your KB first.");
+       return;
+    }
     setIsSynthesizing(true)
+    addTelemetryLog({ source: 'STUDIO', trace: 'Synthesizing HyperFrame composition...', status: 'PROCESSING' })
+    
     setTimeout(() => {
-      setHtmlCode(`<!-- Synthesized by Aura Brain -->\n<div class="hyperframe-scene" data-duration="45s">\n  <video src="bg_tech.mp4" layer="-1" />\n  <div class="glass-panel" data-in="fade 0.5s">\n    <h1>Knowledge Synthesis: ${documents[0]?.title || 'Safety Protocol'}</h1>\n  </div>\n  <heygen-avatar agent="${activeAgent?.id || 'aura-default'}" voice-empathy="${activeAgent?.empathy || 50}" />\n</div>`)
+      const newHtml = `<!-- Synthesized by Aura Brain -->\n<div class="hyperframe-scene" data-duration="45s">\n  <video src="bg_tech.mp4" layer="-1" />\n  <div class="glass-panel" data-in="fade 0.5s">\n    <h1>Knowledge Synthesis: ${documents[0]?.title || 'Safety Protocol'}</h1>\n  </div>\n  <heygen-avatar agent="${activeAgent?.id || 'aura-default'}" voice-empathy="${activeAgent?.empathy || 50}" />\n</div>`
+      setHtmlCode(newHtml)
+      addRenderJob({ 
+        id: Date.now().toString(),
+        title: `${documents[0].title.split('.')[0]}_Synthesis.mp4`,
+        duration: "00:45",
+        date: "Just Now"
+      })
+      addTelemetryLog({ source: 'STUDIO', trace: 'Composition ready for export', status: 'SUCCESS' })
       setIsSynthesizing(false)
-    }, 2000)
+    }, 2500)
   }
   return (
     <div className="p-10 max-w-[1600px] mx-auto space-y-12">
@@ -116,7 +130,7 @@ export default function VideoStudio() {
               <div className="mt-4 px-4 py-3 bg-white/5 rounded-xl flex justify-between items-center">
                  <div className="space-y-1">
                     <p className="text-[10px] font-bold text-zinc-300 uppercase tracking-widest">Render Queue</p>
-                    <p className="text-[9px] font-mono text-zinc-600">0 Active Jobs</p>
+                    <p className="text-[9px] font-mono text-zinc-600">{renderJobs.length} Active Jobs</p>
                  </div>
                  <button className="px-6 py-2 bg-zinc-800 text-zinc-400 font-bold text-[9px] uppercase tracking-widest rounded-lg cursor-not-allowed">
                     Render MP4
@@ -130,8 +144,14 @@ export default function VideoStudio() {
                  <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Recent Exports</h3>
               </div>
               <div className="divide-y divide-white/5">
-                 <ExportRow title="Q3_Security_Update.mp4" duration="00:45" date="Today, 14:22" />
-                 <ExportRow title="Onboarding_Welcome.mp4" duration="01:12" date="Yesterday" />
+                 {renderJobs.map(job => (
+                    <ExportRow key={job.id} title={job.title} duration={job.duration} date={job.date} />
+                 ))}
+                 {renderJobs.length === 0 && (
+                    <div className="p-8 text-center text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+                       No Export History
+                    </div>
+                 )}
               </div>
            </div>
         </div>

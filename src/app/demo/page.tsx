@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { Mic, Send, Image as ImageIcon, Sparkles, Activity } from 'lucide-react'
 import { useState, useRef } from 'react'
+import { generateSpeechUrl, AURA_VOICES } from '@/lib/elevenlabs'
 
 export default function Home() {
   const [userInput, setUserInput] = useState('')
@@ -32,15 +33,33 @@ export default function Home() {
         setChatLog(prev => [...prev, { role: 'aura', content: data.spoken_response }])
         setCurrentEmotion(data.elevenlabs_emotion_tag || 'neutral')
         
-        // Simulate speaking duration
+        // Generate and Play Audio
         setIsSpeaking(true)
-        setTimeout(() => {
-          setIsSpeaking(false)
-          setCurrentEmotion('neutral')
-        }, Math.max(3000, data.spoken_response.length * 50)) // Rough estimation
+        try {
+           const audioUrl = await generateSpeechUrl(data.spoken_response, AURA_VOICES.rachel)
+           if (audioUrl) {
+              const audio = new Audio(audioUrl)
+              audio.onended = () => {
+                 setIsSpeaking(false)
+                 setCurrentEmotion('neutral')
+              }
+              await audio.play()
+           } else {
+              // Fallback if no API key
+              setTimeout(() => {
+                 setIsSpeaking(false)
+                 setCurrentEmotion('neutral')
+              }, Math.max(3000, data.spoken_response.length * 50))
+           }
+        } catch (e) {
+           console.error("Audio playback failed", e)
+           setIsSpeaking(false)
+           setCurrentEmotion('neutral')
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error)
+      setIsProcessing(false)
     } finally {
       setIsProcessing(false)
     }
@@ -58,8 +77,8 @@ export default function Home() {
           <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-pink-500 rounded-lg animate-pulse" />
           <h1 className="text-2xl font-bold tracking-tighter">AURA</h1>
         </div>
-        <div className="px-3 py-1 rounded-full glass text-xs font-semibold text-yellow-400">
-           Mock Mode Active
+        <div className="px-3 py-1 rounded-full glass text-xs font-semibold text-cyan-400">
+           System Operational
         </div>
       </header>
 
@@ -118,7 +137,7 @@ export default function Home() {
                 {isSpeaking ? <Activity className="text-indigo-400 w-10 h-10" /> : <Mic className="text-white/40 w-10 h-10" />}
               </motion.div>
               <p className="text-sm font-medium text-white/40">
-                {isSpeaking ? `Speaking (Emotion: ${currentEmotion})...` : 'Avatar Idle (Mock)'}
+                {isSpeaking ? `Speaking (Emotion: ${currentEmotion})...` : 'Avatar Idle'}
               </p>
             </div>
           </div>
@@ -137,7 +156,7 @@ export default function Home() {
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase tracking-widest text-white/40 font-bold">
                 <span>Signal: {isSpeaking ? 'Active' : 'Stable'}</span>
-                <span>Latency: {isProcessing ? '...' : '240ms'}</span>
+                <span>Latency: {isProcessing ? 'Processing...' : 'Low Latency'}</span>
               </div>
             </div>
           </div>

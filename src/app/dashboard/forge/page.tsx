@@ -9,6 +9,7 @@ export default function AgentForge() {
   const { documents, setActiveAgent } = useAura()
   const [tone, setTone] = useState(70)
   const [empathy, setEmpathy] = useState(40)
+  const [depth, setDepth] = useState(85)
   const [isTesting, setIsTesting] = useState(false)
   const [isDeployed, setIsDeployed] = useState(false)
   const [inputMessage, setInputMessage] = useState('')
@@ -21,19 +22,26 @@ export default function AgentForge() {
     }
   }, [messages])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputMessage.trim()) return
-    setMessages(prev => [...prev, { role: 'user', text: inputMessage }])
+    const msg = inputMessage
+    setMessages(prev => [...prev, { role: 'user', text: msg }])
     setInputMessage('')
     
-    // Simulate Agent Response based on traits
-    setTimeout(() => {
-      let response = "I have processed your request based on my current knowledge matrix."
-      if (empathy > 70) response = "I completely understand what you mean. " + response
-      else if (tone < 30) response = "Acknowledged. " + response
-      
-      setMessages(prev => [...prev, { role: 'agent', text: response }])
-    }, 1500)
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg, imageContext: null })
+      })
+      const data = await res.json()
+      if (data.spoken_response) {
+        setMessages(prev => [...prev, { role: 'agent', text: data.spoken_response }])
+      }
+    } catch (error) {
+      console.error('Forge Chat Error:', error)
+      setMessages(prev => [...prev, { role: 'agent', text: "ERROR: Communication with brain failed." }])
+    }
   }
 
   return (
@@ -159,7 +167,7 @@ export default function AgentForge() {
             <div className="space-y-8">
                <TraitSlider label="Vocal Tone / Resonance" value={tone} onChange={setTone} />
                <TraitSlider label="Empathy Quotient" value={empathy} onChange={setEmpathy} />
-               <TraitSlider label="Reasoning Depth" value={85} />
+               <TraitSlider label="Reasoning Depth" value={depth} onChange={setDepth} />
             </div>
           </div>
 
@@ -214,16 +222,24 @@ function SectionHeader({ icon, title }: any) {
 
 function TraitSlider({ label, value, onChange }: any) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative group">
       <div className="flex justify-between items-center">
         <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{label}</span>
-        <span className="text-[10px] font-mono text-white">{value}%</span>
+        <span className="text-[10px] font-mono text-white group-hover:text-cyan-400 transition-colors">{value}%</span>
       </div>
-      <div className="relative h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+      <div className="relative h-1.5 w-full bg-zinc-800/50 rounded-full overflow-hidden">
         <motion.div 
           initial={{ width: 0 }}
           animate={{ width: `${value}%` }}
-          className="h-full bg-white rounded-full" 
+          className="h-full bg-white group-hover:bg-cyan-500 transition-colors rounded-full" 
+        />
+        <input 
+          type="range" 
+          min="0" 
+          max="100" 
+          value={value} 
+          onChange={(e) => onChange?.(parseInt(e.target.value))}
+          className="absolute inset-0 opacity-0 cursor-pointer w-full"
         />
       </div>
     </div>

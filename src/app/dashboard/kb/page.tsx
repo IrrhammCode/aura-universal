@@ -5,15 +5,19 @@ import { useAura } from '@/context/AuraContext'
 import { useState } from 'react'
 
 export default function KnowledgeBase() {
-  const { documents, addDocument } = useAura()
+  const { documents, addDocument, addTelemetryLog } = useAura()
   const [isUploading, setIsUploading] = useState(false)
 
   const handleUpload = () => {
     setIsUploading(true)
+    addTelemetryLog({ source: 'INGEST', trace: 'Initializing vector embedding pipeline...', status: 'PROCESSING' })
+    
     setTimeout(() => {
-      addDocument({ id: Date.now().toString(), title: `New_Ingest_${Date.now().toString().slice(-4)}.md`, size: '2.4 MB' })
+      const newDoc = { id: Date.now().toString(), title: `Aura_Context_${Date.now().toString().slice(-4)}.pdf`, size: '1.4 MB' }
+      addDocument(newDoc)
+      addTelemetryLog({ source: 'INGEST', trace: `Successfully vectorized: ${newDoc.title}`, status: 'SUCCESS' })
       setIsUploading(false)
-    }, 1500)
+    }, 2000)
   }
   return (
     <div className="p-10 max-w-[1600px] mx-auto space-y-12">
@@ -64,11 +68,11 @@ export default function KnowledgeBase() {
                  <Database size={16} />
                  <span className="text-[11px] font-bold uppercase tracking-widest">Vector Engine</span>
               </div>
-              <div className="space-y-4">
-                 <Metric label="Embedded Vectors" value="1.2M" />
-                 <Metric label="Query Latency" value="18ms" />
-                 <Metric label="Cluster Health" value="Optimal" />
-              </div>
+               <div className="space-y-4">
+                  <Metric label="Embedded Vectors" value={documents.length > 0 ? `${documents.length * 12}k` : "0"} />
+                  <Metric label="Query Latency" value={documents.length > 0 ? "14ms" : "N/A"} />
+                  <Metric label="Cluster Health" value={documents.length > 0 ? "Optimal" : "Standby"} />
+               </div>
            </div>
         </div>
       </div>

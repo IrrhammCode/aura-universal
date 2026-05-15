@@ -2,10 +2,27 @@
 
 import { ChevronDown, Zap, Activity, Shield, Smile, Terminal, Globe, Cpu, MoreHorizontal, ArrowUpRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+
+import { useAura } from '@/context/AuraContext'
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview')
+  const { activeAgent, setActiveAgent, telemetryLogs, addTelemetryLog } = useAura()
+
+  useEffect(() => {
+    // No auto-logs on startup
+  }, [telemetryLogs.length, addTelemetryLog])
+
+  const handleDeploy = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (activeAgent) return // Already deployed
+    setActiveAgent({ id: 'aura-x', name: 'Aura-X', tone: 1, empathy: 50 })
+    addTelemetryLog({ source: 'DEPLOYMENT', trace: 'Initiating Node Aura-X in US-EAST-1', status: 'PROCESSING' })
+    setTimeout(() => {
+       addTelemetryLog({ source: 'SYSTEM', trace: 'Node Aura-X Online', status: 'SUCCESS' })
+    }, 1500)
+  }
 
   return (
     <div className="p-8 lg:p-12 max-w-[1700px] mx-auto space-y-12 selection:bg-cyan-500/30">
@@ -53,8 +70,8 @@ export default function Dashboard() {
             className="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[180px]"
           >
             {/* KPI: Active Instances */}
-            <StatCard className="md:col-span-3" title="Active Instances" value="12" sub="+2.4%" icon={<Cpu size={16}/>} accent="cyan" />
-            <StatCard className="md:col-span-3" title="Resolution Velocity" value="85.2%" sub="Optimal" icon={<Zap size={16}/>} accent="emerald" />
+            <StatCard className="md:col-span-3" title="Active Instances" value={activeAgent ? "1" : "---"} sub={activeAgent ? "Active" : "OFFLINE"} icon={<Cpu size={16}/>} accent="cyan" />
+            <StatCard className="md:col-span-3" title="Resolution Velocity" value={telemetryLogs.length > 5 ? "85.2%" : "---"} sub={telemetryLogs.length > 5 ? "Optimal" : "OFFLINE"} icon={<Zap size={16}/>} accent="emerald" />
 
             {/* Liquid Chart Card */}
             <div className="md:col-span-6 md:row-span-2 glass-card p-8 flex flex-col justify-between relative overflow-hidden group">
@@ -65,29 +82,37 @@ export default function Dashboard() {
               </div>
               <div className="space-y-1">
                 <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Neural Resonance</h3>
-                <p className="text-2xl font-bold text-white tracking-tight">Active Synthesis</p>
+                <p className="text-2xl font-bold text-white tracking-tight">{activeAgent ? "Active Synthesis" : "System Standby"}</p>
               </div>
-              <div className="h-48 w-full mt-8 relative">
-                <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
-                  <path d="M0,80 Q50,70 100,40 T200,50 T300,20 T400,30 V100 H0 Z" fill="url(#chart-grad)" />
-                  <motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2 }} d="M0,80 Q50,70 100,40 T200,50 T300,20 T400,30" fill="none" stroke="#06b6d4" strokeWidth="2" />
-                </svg>
-              </div>
+              
+              {activeAgent ? (
+                <div className="h-48 w-full mt-8 relative">
+                  <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
+                    <path d="M0,80 Q50,70 100,40 T200,50 T300,20 T400,30 V100 H0 Z" fill="url(#chart-grad)" />
+                    <motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2 }} d="M0,80 Q50,70 100,40 T200,50 T300,20 T400,30" fill="none" stroke="#06b6d4" strokeWidth="2" />
+                  </svg>
+                </div>
+              ) : (
+                <div className="h-48 w-full mt-8 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl space-y-3 opacity-50">
+                   <Activity size={32} className="text-zinc-800" />
+                   <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest">No Active Neural Streams</p>
+                </div>
+              )}
             </div>
 
-            <StatCard className="md:col-span-3" title="Sentiment Sync" value="4.82" sub="Resonant" icon={<Smile size={16}/>} accent="purple" />
-            <StatCard className="md:col-span-3" title="System Integrity" value="99.9%" sub="Secured" icon={<Shield size={16}/>} accent="blue" />
+            <StatCard className="md:col-span-3" title="Sentiment Sync" value={activeAgent ? "4.82" : "---"} sub={activeAgent ? "Resonant" : "OFFLINE"} icon={<Smile size={16}/>} accent="purple" />
+            <StatCard className="md:col-span-3" title="System Integrity" value={activeAgent ? "99.9%" : "---"} sub={activeAgent ? "Secured" : "OFFLINE"} icon={<Shield size={16}/>} accent="blue" />
 
             {/* Deployment Matrix */}
             <div className="md:col-span-4 md:row-span-3 glass-card p-8 space-y-8">
               <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Quick Deploy</h3>
-              <div className="space-y-6">
+              <form onSubmit={handleDeploy} className="space-y-6">
                 <DeploymentInput label="Agent Identifier" placeholder="e.g. Aura-X" />
                 <DeploymentInput label="Target Persona" placeholder="Professional" isSelect />
-                <button className="w-full py-5 bg-white text-black font-bold text-[11px] uppercase tracking-[0.3em] rounded-2xl hover:bg-cyan-400 transition-all shadow-2xl">
-                  Initiate Node
+                <button disabled={!!activeAgent} type="submit" className="w-full py-5 bg-white text-black font-bold text-[11px] uppercase tracking-[0.3em] rounded-2xl hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xl">
+                  {activeAgent ? 'Node Active' : 'Initiate Node'}
                 </button>
-              </div>
+              </form>
             </div>
 
             {/* Interaction Log (Ultra-Dense) */}
@@ -98,9 +123,12 @@ export default function Dashboard() {
               <div className="flex-1 overflow-auto">
                 <table className="w-full text-left text-xs">
                   <tbody className="divide-y divide-white/5 text-zinc-400">
-                    <LogRow event="Refund Processed" logic="Validated receipt via Fal.ai." time="12:45" />
-                    <LogRow event="Identity Verified" logic="Biometric handshake successful." time="12:42" />
-                    <LogRow event="Sentiment Alert" logic="User frustration detected." time="12:35" />
+                    {telemetryLogs.slice(0, 5).map((log, i) => (
+                      <LogRow key={i} event={log.source} logic={log.trace} time={log.timestamp} />
+                    ))}
+                    {telemetryLogs.length === 0 && (
+                      <tr className="text-zinc-600"><td colSpan={3} className="px-8 py-6">No recent telemetry.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -114,31 +142,46 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-8"
+            className="w-full"
           >
-             {[1, 2, 3].map(i => (
-               <div key={i} className="glass-card p-10 space-y-6 border border-white/5 hover:border-cyan-500/30 transition-all group">
-                  <div className="flex justify-between items-center">
-                     <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-cyan-500 group-hover:bg-cyan-500 group-hover:text-black transition-all">
-                        <Globe size={24} />
-                     </div>
-                     <div className="text-right">
-                        <p className="text-[10px] font-black text-emerald-500 uppercase">Online</p>
-                        <p className="text-[9px] font-mono text-zinc-600">US-EAST-1</p>
-                     </div>
-                  </div>
-                  <h3 className="text-xl font-bold text-white tracking-tight">Cluster Beta-{i}00</h3>
-                  <div className="space-y-2">
-                     <div className="flex justify-between text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
-                        <span>CPU Load</span>
-                        <span>{Math.floor(Math.random() * 40 + 20)}%</span>
-                     </div>
-                     <div className="h-1 bg-zinc-900 rounded-full overflow-hidden">
-                        <div className="h-full bg-white rounded-full" style={{ width: '45%' }} />
-                     </div>
+             {activeAgent ? (
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                 {[1, 2, 3].map(i => {
+                   const isActive = i === 1; 
+                   return (
+                   <div key={i} className={`glass-card p-10 space-y-6 border transition-all group ${isActive ? 'border-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.1)]' : 'border-white/5 opacity-50'}`}>
+                      <div className="flex justify-between items-center">
+                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isActive ? 'bg-cyan-500 text-black' : 'bg-white/5 text-zinc-600'}`}>
+                            <Globe size={24} />
+                         </div>
+                         <div className="text-right">
+                            <p className={`text-[10px] font-black uppercase ${isActive ? 'text-emerald-500' : 'text-zinc-600'}`}>{isActive ? 'Online' : 'Standby'}</p>
+                            <p className="text-[9px] font-mono text-zinc-600">US-EAST-{i}</p>
+                         </div>
+                      </div>
+                      <h3 className="text-xl font-bold text-white tracking-tight">Node Cluster {i}</h3>
+                      <div className="space-y-2">
+                         <div className="flex justify-between text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+                            <span>CPU Load</span>
+                            <span>{isActive ? Math.floor(Math.random() * 40 + 20) : 0}%</span>
+                         </div>
+                         <div className="h-1 bg-zinc-900 rounded-full overflow-hidden">
+                            <div className="h-full bg-cyan-400 rounded-full transition-all" style={{ width: isActive ? '45%' : '0%' }} />
+                         </div>
+                      </div>
+                   </div>
+                   )
+                 })}
+               </div>
+             ) : (
+               <div className="glass-card p-20 flex flex-col items-center justify-center text-center space-y-4 border-dashed border-white/10">
+                  <Cpu size={48} className="text-zinc-800" />
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.3em]">Infrastructure Idle</p>
+                    <p className="text-[9px] text-zinc-700 uppercase tracking-widest font-bold">Deploy an agent to activate node clusters</p>
                   </div>
                </div>
-             ))}
+             )}
           </motion.div>
         )}
 
@@ -183,11 +226,12 @@ export default function Dashboard() {
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                   <TelemetryRow source="AVATAR_ENGINE" trace="Initializing WebRTC handshake..." status="SUCCESS" />
-                   <TelemetryRow source="VISION_FAL" trace="Parsing image stream (720p)..." status="PROCESSING" />
-                   <TelemetryRow source="TTS_ELEVEN" trace="Synthesizing emotional voice: Rachel" status="SUCCESS" />
-                   <TelemetryRow source="KNOWLEDGE_RAG" trace="Vector search: 'Refund Policy'" status="SUCCESS" />
-                   <TelemetryRow source="CORE_PIPELINE" trace="Dispatching response to client" status="SUCCESS" />
+                   {telemetryLogs.map((log, i) => (
+                      <TelemetryRow key={i} source={log.source} trace={log.trace} status={log.status} />
+                   ))}
+                   {telemetryLogs.length === 0 && (
+                      <tr><td colSpan={3} className="px-8 py-4 text-center text-zinc-600 text-[10px]">Awaiting incoming telemetry...</td></tr>
+                   )}
                 </tbody>
              </table>
           </motion.div>

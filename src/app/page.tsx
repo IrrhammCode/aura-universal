@@ -42,9 +42,9 @@ export default function LandingPage() {
         </div>
 
         <div className="flex items-center gap-8">
-          <button className="text-[11px] font-bold text-zinc-500 hover:text-white transition-colors uppercase tracking-widest">Sign In</button>
-          <Link href="/dashboard" className="cta-button px-5 py-2 rounded-md text-[11px] uppercase tracking-widest">
-            Launch Instance
+          <Link href="/login" className="text-[11px] font-bold text-zinc-500 hover:text-white transition-colors uppercase tracking-widest">Sign In</Link>
+          <Link href="/login" className="cta-button px-5 py-2 rounded-md text-[11px] uppercase tracking-widest">
+            Login
           </Link>
         </div>
       </nav>
@@ -86,7 +86,7 @@ export default function LandingPage() {
             transition={{ delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
           >
-            <Link href="/dashboard" className="cta-button px-10 py-4 rounded-md flex items-center gap-2 text-sm">
+            <Link href="/login" className="cta-button px-10 py-4 rounded-md flex items-center gap-2 text-sm">
               Try the Agent <ArrowRight size={16} />
             </Link>
             <button className="secondary-button px-10 py-4 rounded-md text-sm">
