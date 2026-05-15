@@ -7,8 +7,14 @@ import { AuraLogo } from '@/components/AuraLogo'
 import { useState, useEffect } from 'react'
 
 export default function LandingPage() {
+  const router = useRouter()
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [isConnecting, setIsConnecting] = useState(false)
+
+  useEffect(() => {
+    // Auto-redirect to dashboard for frictionless hackathon demo
+    router.push('/dashboard')
+  }, [router])
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
