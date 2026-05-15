@@ -9,26 +9,54 @@ export default function VideoStudio() {
   const [isSynthesizing, setIsSynthesizing] = useState(false)
   const [htmlCode, setHtmlCode] = useState('<!-- Awaiting AI Generation -->\n<div class="hyperframe-scene" data-duration="30s">\n  <heygen-avatar agent="aura-x" />\n</div>')
 
-  const handleSynthesize = () => {
-    if (!documents.length) {
+  const [studioMode, setStudioMode] = useState<'knowledge' | 'outreach'>('knowledge')
+  const [synthesisGoal, setSynthesisGoal] = useState('')
+  const [targetName, setTargetName] = useState('')
+  const [targetCompany, setTargetCompany] = useState('')
+
+  const handleSynthesize = async () => {
+    if (studioMode === 'knowledge' && !documents.length) {
        alert("No knowledge base documents found. Please sync your KB first.");
        return;
     }
     setIsSynthesizing(true)
     addTelemetryLog({ source: 'STUDIO', trace: 'Synthesizing HyperFrame composition...', status: 'PROCESSING' })
     
-    setTimeout(() => {
-      const newHtml = `<!-- Synthesized by Aura Brain -->\n<div class="hyperframe-scene" data-duration="45s">\n  <video src="bg_tech.mp4" layer="-1" />\n  <div class="glass-panel" data-in="fade 0.5s">\n    <h1>Knowledge Synthesis: ${documents[0]?.title || 'Safety Protocol'}</h1>\n  </div>\n  <heygen-avatar agent="${activeAgent?.id || 'aura-default'}" voice-empathy="${activeAgent?.empathy || 50}" />\n</div>`
-      setHtmlCode(newHtml)
-      addRenderJob({ 
-        id: Date.now().toString(),
-        title: `${documents[0].title.split('.')[0]}_Synthesis.mp4`,
-        duration: "00:45",
-        date: "Just Now"
-      })
-      addTelemetryLog({ source: 'STUDIO', trace: 'Composition ready for export', status: 'SUCCESS' })
+    try {
+      const res = await fetch('/api/studio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: studioMode,
+          documentId: documents.length > 0 ? documents[0].id : null,
+          documentTitle: documents.length > 0 ? documents[0].title : null,
+          targetProfile: studioMode === 'outreach' ? { name: targetName || 'John Doe', company: targetCompany || 'Acme Corp' } : null,
+          agentId: activeAgent?.id,
+          empathy: activeAgent?.empathy,
+          instruction: synthesisGoal
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setHtmlCode(data.html);
+        addRenderJob({ 
+          id: data.id,
+          title: data.title,
+          duration: data.duration,
+          date: data.date
+        });
+        addTelemetryLog({ source: 'STUDIO', trace: 'Composition ready for export', status: 'SUCCESS' });
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err) {
+      console.error("Synthesis failed", err);
+      addTelemetryLog({ source: 'STUDIO', trace: 'Synthesis failed.', status: 'ERROR' });
+    } finally {
       setIsSynthesizing(false)
-    }, 2500)
+    }
   }
   return (
     <div className="p-10 max-w-[1600px] mx-auto space-y-12">
@@ -57,34 +85,79 @@ export default function VideoStudio() {
               <div className="space-y-6">
                  {/* Mode Selector */}
                  <div className="grid grid-cols-2 gap-3">
-                    <button className="p-4 rounded-2xl bg-white text-black font-bold text-[9px] uppercase tracking-widest flex flex-col items-center gap-2">
+                    <button 
+                       onClick={() => setStudioMode('knowledge')}
+                       className={`p-4 rounded-2xl font-bold text-[9px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${studioMode === 'knowledge' ? 'bg-white text-black' : 'bg-white/5 border border-white/5 text-zinc-500 hover:border-white/20 hover:text-white'}`}
+                    >
                        <Book size={16} />
                        Knowledge-to-Video
                     </button>
-                    <button className="p-4 rounded-2xl bg-white/5 border border-white/5 text-zinc-500 font-bold text-[9px] uppercase tracking-widest flex flex-col items-center gap-2 hover:border-white/20 hover:text-white transition-all">
+                    <button 
+                       onClick={() => setStudioMode('outreach')}
+                       className={`p-4 rounded-2xl font-bold text-[9px] uppercase tracking-widest flex flex-col items-center gap-2 transition-all ${studioMode === 'outreach' ? 'bg-white text-black' : 'bg-white/5 border border-white/5 text-zinc-500 hover:border-white/20 hover:text-white'}`}
+                    >
                        <Users size={16} />
                        Personalized Outreach
                     </button>
                  </div>
 
-                 <div className="space-y-4">
-                    <div className="space-y-2">
-                       <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Select Knowledge Source</label>
-                       <select className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-4 text-xs text-white appearance-none focus:outline-none">
-                         {documents.map(doc => <option key={doc.id}>{doc.title}</option>)}
-                         {documents.length === 0 && <option>No Documents Available in KB</option>}
-                       </select>
-                    </div>
+                 {studioMode === 'knowledge' ? (
+                   <div className="space-y-4">
+                      <div className="space-y-2">
+                         <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Select Knowledge Source</label>
+                         <select className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-4 text-xs text-white appearance-none focus:outline-none">
+                           {documents.map(doc => <option key={doc.id}>{doc.title}</option>)}
+                           {documents.length === 0 && <option>No Documents Available in KB</option>}
+                         </select>
+                      </div>
 
-                    <div className="space-y-2">
-                       <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Synthesis Goal</label>
-                       <textarea 
-                          rows={4}
-                          placeholder="e.g. Summarize the 'Safety Protocol' into a 1-minute explainer for new employees."
-                          className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50 resize-none transition-all"
-                       />
-                    </div>
-                 </div>
+                      <div className="space-y-2">
+                         <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Synthesis Goal</label>
+                         <textarea 
+                            rows={4}
+                            value={synthesisGoal}
+                            onChange={(e) => setSynthesisGoal(e.target.value)}
+                            placeholder="e.g. Summarize the 'Safety Protocol' into a 1-minute explainer for new employees."
+                            className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50 resize-none transition-all"
+                         />
+                      </div>
+                   </div>
+                 ) : (
+                   <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Target Name</label>
+                            <input 
+                               type="text" 
+                               value={targetName}
+                               onChange={(e) => setTargetName(e.target.value)}
+                               placeholder="John Doe" 
+                               className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50" 
+                            />
+                         </div>
+                         <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Target Company</label>
+                            <input 
+                               type="text" 
+                               value={targetCompany}
+                               onChange={(e) => setTargetCompany(e.target.value)}
+                               placeholder="Acme Corp" 
+                               className="w-full bg-black/50 border border-white/5 rounded-xl px-4 py-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50" 
+                            />
+                         </div>
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Outreach Pitch</label>
+                         <textarea 
+                            rows={3}
+                            value={synthesisGoal}
+                            onChange={(e) => setSynthesisGoal(e.target.value)}
+                            placeholder="e.g. Highlight our new API infrastructure and how it solves their scaling issues."
+                            className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50 resize-none transition-all"
+                         />
+                      </div>
+                   </div>
+                 )}
 
                  <button 
                     onClick={handleSynthesize}

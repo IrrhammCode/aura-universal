@@ -5,19 +5,44 @@ import { useAura } from '@/context/AuraContext'
 import { useState } from 'react'
 
 export default function KnowledgeBase() {
-  const { documents, addDocument, addTelemetryLog } = useAura()
+  const { documents, setDocuments, addTelemetryLog } = useAura()
   const [isUploading, setIsUploading] = useState(false)
 
-  const handleUpload = () => {
+  const handleUploadClick = () => {
+    document.getElementById('kb-upload')?.click();
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
     setIsUploading(true)
-    addTelemetryLog({ source: 'INGEST', trace: 'Initializing vector embedding pipeline...', status: 'PROCESSING' })
+    addTelemetryLog({ source: 'INGEST', trace: `Uploading & vectorizing: ${file.name}...`, status: 'PROCESSING' })
     
-    setTimeout(() => {
-      const newDoc = { id: Date.now().toString(), title: `Aura_Context_${Date.now().toString().slice(-4)}.pdf`, size: '1.4 MB' }
-      addDocument(newDoc)
-      addTelemetryLog({ source: 'INGEST', trace: `Successfully vectorized: ${newDoc.title}`, status: 'SUCCESS' })
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/kb/upload', {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      
+      if (res.ok && data.document) {
+        setDocuments(prev => [data.document, ...prev])
+        addTelemetryLog({ source: 'INGEST', trace: `Successfully vectorized: ${file.name}`, status: 'SUCCESS' })
+      } else {
+        throw new Error(data.error)
+      }
+    } catch (err: any) {
+      console.error('Upload failed:', err)
+      addTelemetryLog({ source: 'INGEST', trace: `Failed to upload: ${err.message}`, status: 'ERROR' })
+    } finally {
       setIsUploading(false)
-    }, 2000)
+      // Reset input
+      if (e.target) e.target.value = ''
+    }
   }
   return (
     <div className="p-10 max-w-[1600px] mx-auto space-y-12">
@@ -29,9 +54,10 @@ export default function KnowledgeBase() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
            <div 
-              onClick={handleUpload}
+              onClick={handleUploadClick}
               className={`glass-card p-12 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center text-center space-y-6 transition-all ${isUploading ? 'bg-cyan-500/10 border-cyan-500' : 'hover:bg-white/[0.02] cursor-pointer'}`}
            >
+              <input type="file" id="kb-upload" className="hidden" onChange={handleFileChange} accept=".pdf,.txt,.md" />
               <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center">
                  {isUploading ? <Loader2 size={32} className="text-cyan-400 animate-spin" /> : <Upload size={32} className="text-zinc-400" />}
               </div>
@@ -48,7 +74,7 @@ export default function KnowledgeBase() {
               <div className="divide-y divide-white/5">
                  {documents.length > 0 ? (
                     documents.map((doc, idx) => (
-                       <KBItem key={doc.id} title={doc.title} docs={idx === 0 ? 42 : 1} size={doc.size} />
+                       <KBItem key={doc.id} title={doc.title} docs={1} size={doc.size} url={doc.url} />
                     ))
                  ) : (
                     <div className="py-12 text-center flex flex-col items-center justify-center space-y-3">
@@ -69,7 +95,7 @@ export default function KnowledgeBase() {
                  <span className="text-[11px] font-bold uppercase tracking-widest">Vector Engine</span>
               </div>
                <div className="space-y-4">
-                  <Metric label="Embedded Vectors" value={documents.length > 0 ? `${documents.length * 12}k` : "0"} />
+                  <Metric label="Embedded Vectors" value={documents.length > 0 ? documents.reduce((acc, doc) => acc + (doc.vectors || 0), 0).toLocaleString() : "0"} />
                   <Metric label="Query Latency" value={documents.length > 0 ? "14ms" : "N/A"} />
                   <Metric label="Cluster Health" value={documents.length > 0 ? "Optimal" : "Standby"} />
                </div>
@@ -80,9 +106,9 @@ export default function KnowledgeBase() {
   )
 }
 
-function KBItem({ title, docs, size }: any) {
+function KBItem({ title, docs, size, url }: any) {
   return (
-    <div className="p-6 flex items-center justify-between hover:bg-white/[0.01] transition-all">
+    <div className="p-6 flex items-center justify-between hover:bg-white/[0.01] transition-all group">
        <div className="flex items-center gap-4">
           <FileText size={18} className="text-zinc-600" />
           <div>
@@ -90,7 +116,14 @@ function KBItem({ title, docs, size }: any) {
              <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">{docs} Documents</p>
           </div>
        </div>
-       <span className="text-[10px] font-mono text-zinc-700">{size}</span>
+       <div className="flex items-center gap-4">
+          <span className="text-[10px] font-mono text-zinc-700">{size}</span>
+          {url && (
+            <a href={url} target="_blank" rel="noopener noreferrer" className="opacity-0 group-hover:opacity-100 px-3 py-1 bg-white/5 hover:bg-cyan-500 hover:text-black rounded text-[9px] font-bold uppercase tracking-widest transition-all">
+              Open File
+            </a>
+          )}
+       </div>
     </div>
   )
 }

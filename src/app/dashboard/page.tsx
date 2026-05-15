@@ -9,6 +9,10 @@ import { useAura } from '@/context/AuraContext'
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview')
   const { activeAgent, setActiveAgent, telemetryLogs, addTelemetryLog } = useAura()
+  
+  const [deployId, setDeployId] = useState('')
+  const [deployPersona, setDeployPersona] = useState('Professional / Analytical')
+  const [isScanning, setIsScanning] = useState(false)
 
   useEffect(() => {
     // No auto-logs on startup
@@ -17,11 +21,21 @@ export default function Dashboard() {
   const handleDeploy = (e: React.FormEvent) => {
     e.preventDefault()
     if (activeAgent) return // Already deployed
-    setActiveAgent({ id: 'aura-x', name: 'Aura-X', tone: 1, empathy: 50 })
-    addTelemetryLog({ source: 'DEPLOYMENT', trace: 'Initiating Node Aura-X in US-EAST-1', status: 'PROCESSING' })
+    const id = deployId || 'AURA-X'
+    setActiveAgent({ id: id.toLowerCase(), name: id, tone: 70, empathy: 50 })
+    addTelemetryLog({ source: 'DEPLOYMENT', trace: `Initiating Node ${id} in US-EAST-1 (${deployPersona})`, status: 'PROCESSING' })
     setTimeout(() => {
-       addTelemetryLog({ source: 'SYSTEM', trace: 'Node Aura-X Online', status: 'SUCCESS' })
+       addTelemetryLog({ source: 'SYSTEM', trace: `Node ${id} Online`, status: 'SUCCESS' })
     }, 1500)
+  }
+
+  const handleScan = () => {
+    setIsScanning(true)
+    addTelemetryLog({ source: 'SECURITY', trace: 'Initiating deep perimeter scan...', status: 'PROCESSING' })
+    setTimeout(() => {
+       setIsScanning(false)
+       addTelemetryLog({ source: 'SECURITY', trace: 'Scan complete. 0 anomalies detected.', status: 'SUCCESS' })
+    }, 3000)
   }
 
   return (
@@ -107,8 +121,8 @@ export default function Dashboard() {
             <div className="md:col-span-4 md:row-span-3 glass-card p-8 space-y-8">
               <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Quick Deploy</h3>
               <form onSubmit={handleDeploy} className="space-y-6">
-                <DeploymentInput label="Agent Identifier" placeholder="e.g. Aura-X" />
-                <DeploymentInput label="Target Persona" placeholder="Professional" isSelect />
+                <DeploymentInput label="Agent Identifier" placeholder="e.g. Aura-X" value={deployId} onChange={(e: any) => setDeployId(e.target.value)} />
+                <DeploymentInput label="Target Persona" isSelect value={deployPersona} onChange={(e: any) => setDeployPersona(e.target.value)} />
                 <button disabled={!!activeAgent} type="submit" className="w-full py-5 bg-white text-black font-bold text-[11px] uppercase tracking-[0.3em] rounded-2xl hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-2xl">
                   {activeAgent ? 'Node Active' : 'Initiate Node'}
                 </button>
@@ -191,17 +205,23 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="glass-card p-12 border border-red-500/20 bg-red-500/5 flex flex-col items-center justify-center text-center space-y-6"
+            className={`glass-card p-12 flex flex-col items-center justify-center text-center space-y-6 transition-all ${isScanning ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-red-500/20 bg-red-500/5'}`}
           >
-             <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center text-red-500">
+             <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${isScanning ? 'bg-cyan-500/20 text-cyan-500 animate-pulse' : 'bg-red-500/20 text-red-500'}`}>
                 <Shield size={40} />
              </div>
              <div className="space-y-2">
                 <h3 className="text-2xl font-bold text-white tracking-tight uppercase">Security Perimeter</h3>
-                <p className="text-sm text-zinc-500 max-w-sm">Active threat mitigation system is scanning for anomalies. No unauthorized handshakes detected in the last 24h.</p>
+                <p className="text-sm text-zinc-500 max-w-sm">
+                  {isScanning ? "Deep scan in progress. Analyzing node integrity and WebRTC handshakes..." : "Active threat mitigation system is scanning for anomalies. No unauthorized handshakes detected in the last 24h."}
+                </p>
              </div>
-             <button className="px-8 py-3 bg-red-500 text-white font-bold text-[10px] uppercase tracking-widest rounded-xl hover:bg-red-400 transition-all">
-                Run Deep Scan
+             <button 
+                onClick={handleScan}
+                disabled={isScanning}
+                className={`px-8 py-3 font-bold text-[10px] uppercase tracking-widest rounded-xl transition-all ${isScanning ? 'bg-cyan-500 text-black opacity-50 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-400'}`}
+             >
+                {isScanning ? 'Scanning...' : 'Run Deep Scan'}
              </button>
           </motion.div>
         )}
@@ -264,18 +284,18 @@ function StatCard({ title, value, sub, icon, className, accent }: any) {
   )
 }
 
-function DeploymentInput({ label, placeholder, isSelect }: any) {
+function DeploymentInput({ label, placeholder, isSelect, value, onChange }: any) {
   return (
     <div className="space-y-2">
       <label className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">{label}</label>
       <div className="relative">
         {isSelect ? (
-          <select className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-4 text-xs text-white appearance-none focus:outline-none focus:border-white/20">
+          <select value={value} onChange={onChange} className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-4 text-xs text-white appearance-none focus:outline-none focus:border-white/20">
             <option>Professional / Analytical</option>
             <option>Casual / Empathic</option>
           </select>
         ) : (
-          <input type="text" placeholder={placeholder} className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20" />
+          <input type="text" value={value} onChange={onChange} placeholder={placeholder} className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-4 text-xs text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/20" />
         )}
         {isSelect && <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600" />}
       </div>

@@ -4,8 +4,24 @@ import { motion } from 'framer-motion'
 import { Search, Filter, Download, ExternalLink, Image as ImageIcon, MessageSquare, Inbox } from 'lucide-react'
 import { useState } from 'react'
 
+import { useAura } from '@/context/AuraContext'
+
 export default function InteractionLogs() {
-  const [logs, setLogs] = useState<any[]>([])
+  const { interactionLogs } = useAura()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterType, setFilterType] = useState<'all' | 'vision' | 'text'>('all')
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+
+  const filteredLogs = interactionLogs.filter(log => {
+    const matchesSearch = log.input.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          log.response.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (log.id && log.id.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    if (filterType === 'vision') return matchesSearch && log.hasImage;
+    if (filterType === 'text') return matchesSearch && !log.hasImage;
+    return matchesSearch;
+  })
+
   return (
     <div className="p-10 max-w-[1600px] mx-auto space-y-10">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -17,12 +33,51 @@ export default function InteractionLogs() {
         <div className="flex gap-4">
            <div className="relative">
               <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" />
-              <input type="text" placeholder="SEARCH TRACES..." className="bg-zinc-900/50 border border-white/5 rounded-xl px-10 py-3 text-[10px] font-bold tracking-widest uppercase focus:outline-none focus:border-white/20 transition-all w-64" />
+              <input 
+                type="text" 
+                placeholder="SEARCH TRACES..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-zinc-900/50 border border-white/5 rounded-xl px-10 py-3 text-[10px] font-bold tracking-widest uppercase focus:outline-none focus:border-white/20 transition-all w-64" 
+              />
            </div>
-           <button className="glass-card px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-white/5 transition-all">
-              <Filter size={14} className="text-zinc-500" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Filter</span>
-           </button>
+           
+           <div className="relative">
+             <button 
+                onClick={() => setShowFilterMenu(!showFilterMenu)}
+                className={`glass-card px-6 py-3 rounded-xl flex items-center gap-2 transition-all ${showFilterMenu || filterType !== 'all' ? 'bg-white/10 border-white/20' : 'hover:bg-white/5'}`}
+             >
+                <Filter size={14} className={filterType !== 'all' ? 'text-cyan-400' : 'text-zinc-500'} />
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${filterType !== 'all' ? 'text-cyan-400' : ''}`}>
+                  {filterType === 'all' ? 'Filter' : filterType === 'vision' ? 'Vision' : 'Text'}
+                </span>
+             </button>
+             
+             {showFilterMenu && (
+               <div className="absolute right-0 top-full mt-2 w-40 glass-card border border-white/10 rounded-xl overflow-hidden z-50">
+                 <div className="flex flex-col text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                    <button 
+                      onClick={() => { setFilterType('all'); setShowFilterMenu(false); }}
+                      className={`px-4 py-3 text-left hover:bg-white/5 transition-colors ${filterType === 'all' ? 'text-cyan-400 bg-white/[0.02]' : ''}`}
+                    >
+                      All Logs
+                    </button>
+                    <button 
+                      onClick={() => { setFilterType('vision'); setShowFilterMenu(false); }}
+                      className={`px-4 py-3 text-left hover:bg-white/5 transition-colors ${filterType === 'vision' ? 'text-cyan-400 bg-white/[0.02]' : ''}`}
+                    >
+                      Vision Only
+                    </button>
+                    <button 
+                      onClick={() => { setFilterType('text'); setShowFilterMenu(false); }}
+                      className={`px-4 py-3 text-left hover:bg-white/5 transition-colors ${filterType === 'text' ? 'text-cyan-400 bg-white/[0.02]' : ''}`}
+                    >
+                      Text Only
+                    </button>
+                 </div>
+               </div>
+             )}
+           </div>
         </div>
       </header>
 
@@ -38,8 +93,8 @@ export default function InteractionLogs() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5 text-[11px] font-medium text-zinc-400">
-            {logs.length > 0 ? (
-              logs.map((log, i) => (
+            {filteredLogs.length > 0 ? (
+              filteredLogs.map((log, i) => (
                  <LogRow key={i} {...log} />
               ))
             ) : (

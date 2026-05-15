@@ -1,20 +1,74 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Mic, Brain, Sparkles, Wand2, Settings2, Waves, Play, Send, X, MessageSquare, Activity, CheckCircle } from 'lucide-react'
+import { ChevronRight, Mic, Brain, Sparkles, Wand2, Settings2, Waves, Play, Send, X, MessageSquare, Activity, CheckCircle, Video } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useAura } from '@/context/AuraContext'
 
 export default function AgentForge() {
-  const { documents, setActiveAgent } = useAura()
+  const { documents, setActiveAgent, addInteractionLog } = useAura()
   const [tone, setTone] = useState(70)
-  const [empathy, setEmpathy] = useState(40)
-  const [depth, setDepth] = useState(85)
+  const [empathy, setEmpathy] = useState(85)
+  const [depth, setDepth] = useState(90)
+  const [voice, setVoice] = useState('Adam')
+  const [avatar, setAvatar] = useState('aura-x')
   const [isTesting, setIsTesting] = useState(false)
   const [isDeployed, setIsDeployed] = useState(false)
   const [inputMessage, setInputMessage] = useState('')
   const [messages, setMessages] = useState<{role: 'user' | 'agent', text: string}[]>([])
   const chatRef = useRef<HTMLDivElement>(null)
+  
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null)
+  const [isInitializingLiveAvatar, setIsInitializingLiveAvatar] = useState(false)
+
+  const startSimulation = async () => {
+    setIsTesting(true);
+    setEmbedUrl(null);
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_HEYGEN_API_KEY;
+      if (apiKey && apiKey !== '••••••••••••••••') {
+         setIsInitializingLiveAvatar(true);
+         const { HeyGenManager } = await import('@/lib/heygen');
+         const manager = HeyGenManager.getInstance();
+         const embed = await manager.createLiveAvatarEmbed(avatar, undefined, true);
+         setEmbedUrl(embed.url);
+      }
+    } catch (err) {
+      console.error("Failed to start LiveAvatar:", err);
+      // Fallback to text mode handled implicitly by embedUrl === null
+    } finally {
+      setIsInitializingLiveAvatar(false);
+    }
+  }
+
+  const [avatarList, setAvatarList] = useState<any[]>([
+    { id: 'aura-x', name: 'Aura-X', preview_url: null },
+    { id: 'josh_lite_20230714', name: 'Josh', preview_url: null },
+    { id: 'sarah_pro', name: 'Sarah', preview_url: null }
+  ])
+
+  useEffect(() => {
+    const fetchAvatars = async () => {
+      try {
+        const apiKey = process.env.NEXT_PUBLIC_HEYGEN_API_KEY;
+        if (!apiKey || apiKey === '••••••••••••••••') return;
+        
+        const res = await fetch('https://api.liveavatar.com/v1/avatars/public', {
+          headers: { 'X-API-KEY': apiKey }
+        });
+        const json = await res.json();
+        if (json.code === 100 || json.code === 1000) {
+           if (json.data && json.data.results && json.data.results.length >= 3) {
+             setAvatarList(json.data.results.slice(0, 3));
+             setAvatar(json.data.results[0].id);
+           }
+        }
+      } catch (err) {
+        console.error("Failed to fetch LiveAvatar avatars:", err);
+      }
+    };
+    fetchAvatars();
+  }, []);
 
   useEffect(() => {
     if (chatRef.current) {
@@ -32,11 +86,25 @@ export default function AgentForge() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, imageContext: null })
+        body: JSON.stringify({ 
+          message: msg, 
+          imageContext: null,
+          tone,
+          empathy,
+          depth
+        })
       })
       const data = await res.json()
       if (data.spoken_response) {
         setMessages(prev => [...prev, { role: 'agent', text: data.spoken_response }])
+        
+        // Add to global Interaction Logs
+        addInteractionLog({
+          input: msg,
+          response: data.spoken_response,
+          vision: data.posthog_event?.intent_detected || '-',
+          hasImage: false
+        })
       }
     } catch (error) {
       console.error('Forge Chat Error:', error)
@@ -72,7 +140,7 @@ export default function AgentForge() {
             
             {!isTesting && !isDeployed && (
               <motion.button 
-                onClick={() => setIsTesting(true)}
+                onClick={startSimulation}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="px-6 py-4 rounded-full bg-white text-black flex items-center gap-3 font-bold text-[10px] uppercase tracking-widest shadow-2xl"
@@ -115,42 +183,63 @@ export default function AgentForge() {
                    </button>
                 </div>
 
-                {/* Chat Log */}
-                <div ref={chatRef} className="flex-1 p-6 overflow-y-auto space-y-6">
-                   {messages.map((msg, idx) => (
-                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[70%] p-4 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-cyan-500 text-black rounded-br-none' : 'glass-card text-white rounded-bl-none'}`}>
-                           {msg.text}
+                {/* Dynamic Content: LiveAvatar Embed OR Text Fallback */}
+                {isInitializingLiveAvatar ? (
+                   <div className="flex-1 flex flex-col items-center justify-center space-y-6">
+                      <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                      <div className="space-y-2 text-center">
+                         <p className="text-[12px] font-bold text-cyan-500 uppercase tracking-widest animate-pulse">Initializing Neural Link</p>
+                         <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Establishing secure WebRTC stream...</p>
+                      </div>
+                   </div>
+                ) : embedUrl ? (
+                   <div className="flex-1 flex flex-col">
+                      <iframe 
+                         src={embedUrl}
+                         allow="microphone; camera"
+                         className="flex-1 w-full border-none bg-black/50"
+                      />
+                   </div>
+                ) : (
+                   <>
+                     {/* Chat Log (Fallback) */}
+                     <div ref={chatRef} className="flex-1 p-6 overflow-y-auto space-y-6">
+                        {messages.map((msg, idx) => (
+                          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                             <div className={`max-w-[70%] p-4 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-cyan-500 text-black rounded-br-none' : 'glass-card text-white rounded-bl-none'}`}>
+                                {msg.text}
+                             </div>
+                          </div>
+                        ))}
+                        {messages.length === 0 && (
+                          <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
+                             <MessageSquare size={32} />
+                             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Text Fallback Mode.<br/>Start typing to test the agent's logic.</p>
+                          </div>
+                        )}
+                     </div>
+
+                     {/* Input Area */}
+                     <div className="p-6 border-t border-white/10 bg-black">
+                        <div className="relative">
+                           <input 
+                              type="text" 
+                              value={inputMessage}
+                              onChange={(e) => setInputMessage(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                              placeholder="Send a test message..."
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-6 pr-16 text-sm text-white focus:outline-none focus:border-cyan-500 transition-all"
+                           />
+                           <button 
+                              onClick={handleSendMessage}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-cyan-500 text-black flex items-center justify-center hover:bg-cyan-400 transition-colors"
+                           >
+                              <Send size={16} />
+                           </button>
                         </div>
                      </div>
-                   ))}
-                   {messages.length === 0 && (
-                     <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-                        <MessageSquare size={32} />
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Configuration loaded.<br/>Start typing to test the agent's logic.</p>
-                     </div>
-                   )}
-                </div>
-
-                {/* Input Area */}
-                <div className="p-6 border-t border-white/10 bg-black">
-                   <div className="relative">
-                      <input 
-                         type="text" 
-                         value={inputMessage}
-                         onChange={(e) => setInputMessage(e.target.value)}
-                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                         placeholder="Send a test message..."
-                         className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-6 pr-16 text-sm text-white focus:outline-none focus:border-cyan-500 transition-all"
-                      />
-                      <button 
-                         onClick={handleSendMessage}
-                         className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-cyan-500 text-black flex items-center justify-center hover:bg-cyan-400 transition-colors"
-                      >
-                         <Send size={16} />
-                      </button>
-                   </div>
-                </div>
+                   </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -172,16 +261,54 @@ export default function AgentForge() {
           </div>
 
           <div className="glass-card p-8 space-y-6">
+            <SectionHeader icon={<Video size={16}/>} title="Visual Identity (HeyGen)" />
+            <div className="grid grid-cols-3 gap-4">
+               {avatarList.map((a) => (
+                 <div 
+                   key={a.id}
+                   onClick={() => setAvatar(a.id)}
+                   className={`p-4 rounded-2xl border cursor-pointer transition-all text-center space-y-2 flex flex-col items-center justify-center ${avatar === a.id ? 'bg-cyan-500/10 border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
+                 >
+                    <div className={`w-12 h-12 rounded-full border-2 overflow-hidden transition-all ${avatar === a.id ? 'border-cyan-500' : 'border-transparent'}`}>
+                       {a.preview_url ? (
+                         <img src={a.preview_url} alt={a.name} className="w-full h-full object-cover" />
+                       ) : (
+                         <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-[10px] font-black text-zinc-600">
+                            {a.name.charAt(0)}
+                         </div>
+                       )}
+                    </div>
+                    <div>
+                       <p className={`text-[10px] font-bold uppercase tracking-widest ${avatar === a.id ? 'text-cyan-400' : 'text-white'}`}>{a.name}</p>
+                    </div>
+                 </div>
+               ))}
+            </div>
+          </div>
+
+          <div className="glass-card p-8 space-y-6">
             <SectionHeader icon={<Waves size={16}/>} title="Vocal Synthesis (ElevenLabs)" />
-            <div className="flex items-center gap-6 p-4 rounded-2xl bg-white/5 border border-white/5 group hover:border-white/10 transition-all">
-               <div className="w-12 h-12 rounded-full bg-cyan-500 flex items-center justify-center text-black shadow-lg shadow-cyan-500/20">
-                  <Play size={20} fill="currentColor" />
-               </div>
-               <div className="flex-1 space-y-1">
-                  <p className="text-xs font-bold text-white uppercase tracking-widest">Adam - Professional</p>
-                  <p className="text-[10px] text-zinc-500 italic">Deep, authoritative, stable resonance.</p>
-               </div>
-               <ChevronRight size={16} className="text-zinc-700" />
+            <div className="space-y-3">
+               {[
+                 { id: 'Adam', name: 'Adam - Professional', desc: 'Deep, authoritative, stable resonance.' },
+                 { id: 'Rachel', name: 'Rachel - Warm', desc: 'Approachable, clear, and empathetic.' },
+                 { id: 'Domi', name: 'Domi - Dynamic', desc: 'Energetic, fast-paced, and engaging.' }
+               ].map((v) => (
+                 <div 
+                   key={v.id}
+                   onClick={() => setVoice(v.id)}
+                   className={`flex items-center gap-6 p-4 rounded-2xl border cursor-pointer transition-all ${voice === v.id ? 'bg-cyan-500/10 border-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.2)]' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
+                 >
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors ${voice === v.id ? 'bg-cyan-500 text-black shadow-cyan-500/20' : 'bg-zinc-800 text-zinc-500'}`}>
+                       <Play size={20} fill="currentColor" />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                       <p className={`text-xs font-bold uppercase tracking-widest ${voice === v.id ? 'text-cyan-400' : 'text-white'}`}>{v.name}</p>
+                       <p className="text-[10px] text-zinc-500 italic">{v.desc}</p>
+                    </div>
+                    {voice === v.id && <CheckCircle size={16} className="text-cyan-500" />}
+                 </div>
+               ))}
             </div>
           </div>
 

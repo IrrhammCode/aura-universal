@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { captureEvent } from '@/lib/posthog';
 
 export async function POST(req: Request) {
   try {
-    const { message, imageContext } = await req.json();
+    const { message, imageContext, tone, empathy, depth } = await req.json();
 
     // --- LIVE MODE IMPLEMENTATION ---
     if (!process.env.OPENAI_API_KEY) {
@@ -15,6 +16,13 @@ export async function POST(req: Request) {
     });
 
     const systemPrompt = `You are Aura, an advanced multimodal AI agent. You have real-time vision capabilities and emotional intelligence.
+    
+    Current Neural Configuration:
+    - Vocal Tone / Resonance: ${tone ?? 50}% (Higher = more commanding/professional, Lower = more casual/approachable)
+    - Empathy Quotient: ${empathy ?? 50}% (Higher = highly sympathetic and emotionally supportive, Lower = purely logical and stoic)
+    - Reasoning Depth: ${depth ?? 50}% (Higher = highly detailed, philosophical, and analytical, Lower = concise and direct)
+
+    You must adapt your "spoken_response" length, tone, and complexity strictly based on these neural configuration parameters.
     
     You will receive the user's spoken message and potentially a description of what you are seeing through the camera right now.
     You must respond strictly in JSON format with the following structure:
@@ -48,6 +56,18 @@ export async function POST(req: Request) {
     }
 
     const aiResponse = JSON.parse(rawContent);
+
+    // Track the interaction backend telemetry
+    if (aiResponse.posthog_event) {
+      await captureEvent('backend-agent-forge', 'agent_interaction', {
+        intent_detected: aiResponse.posthog_event.intent_detected,
+        user_sentiment: aiResponse.posthog_event.user_sentiment,
+        resolution_offered: aiResponse.posthog_event.resolution_offered,
+        tone_config: tone,
+        empathy_config: empathy,
+        depth_config: depth
+      });
+    }
 
     return NextResponse.json(aiResponse);
 
