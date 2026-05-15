@@ -1,36 +1,111 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🌌 AURA: Neural Agent Orchestration Platform
 
-## Getting Started
+## 🏆 HeyGen Hackathon Submission
+* **Track:** Agent Track 
+* **Live Demo:** [Insert Vercel Deployment Link Here]
+* **Demo Video:** [Insert YouTube/Loom Link Here]
 
-First, run the development server:
+## 💡 The Problem & Solution (B2B AI Automation)
+Most businesses want "Digital Employees," but standard chatbots lack human presence, and video AI lacks real-time visual context. **AURA** bridges this gap. We provide a white-label B2B framework where companies can deploy multimodal agents that **see** user problems, **speak** with empathy, and **sync** with high-fidelity avatars.
 
+### 👁️ Visual Perception (Fal.ai)
+*   **Vision Engine**: Processes user-uploaded images (e.g., broken products, technical errors) to provide visual context to the LLM before the avatar responds.
+
+### 📈 Analytics & Evolution (Posthog)
+*   **Telemetry**: Tracks agent interaction duration, visual triggers, and user sentiment.
+*   **A/B Persona Testing**: Logs data to optimize which ElevenLabs voice tone yields the highest resolution rate.
+
+## ⚙️ The Multimodal Pipeline
+1. **Input:** User sends text + image.
+2. **Perception:** Fal.ai extracts context from the image.
+3. **Cognition:** OpenAI processes text + visual context to generate the response and determine the emotional state.
+4. **Synthesis:** ElevenLabs generates audio based on the determined emotion.
+5. **Presence:** HeyGen Streaming API renders the final lip-synced video response in real-time.
+
+---
+
+## 🚀 Technical Core Modules
+
+AURA is built on a "Bring Your Own Key" (BYOK) infrastructure, integrating best-in-class AI engines:
+
+### 👤 Interactive Video (HeyGen)
+*   **Logic Engine**: Implementation of the Streaming API and Live Avatar initialization.
+    *   [src/lib/heygen.ts](file:///Users/irham/Documents/code/aura-platform/src/lib/heygen.ts)
+*   **API Layer**: Endpoints for avatar listing and session embedding.
+    *   [/api/heygen/avatars](file:///Users/irham/Documents/code/aura-platform/src/app/api/heygen/avatars/route.ts)
+    *   [/api/heygen/embed](file:///Users/irham/Documents/code/aura-platform/src/app/api/heygen/embed/route.ts)
+
+### 🎙️ Neural Vocal Synthesis (ElevenLabs)
+*   **Voice Integration**: Fetches and manages high-quality neural voices.
+    *   [/api/voices](file:///Users/irham/Documents/code/aura-platform/src/app/api/voices/route.ts)
+
+### 📹 Hyperframe Video Rendering
+*   **Studio Engine**: HTML-to-Video synthesis for automated resolution receipts.
+    *   [/api/studio](file:///Users/irham/Documents/code/aura-platform/src/app/api/studio/route.ts)
+*   **Resolution Workflow**: Side-by-side video template with GSAP animations.
+    *   [Resolution Mode Logic](file:///Users/irham/Documents/code/aura-platform/src/app/api/studio/route.ts#L64)
+
+### 🧠 Knowledge & Memory (Prisma + RAG)
+*   **Schema**: Multi-tenant organization and agent data models.
+    *   [prisma/schema.prisma](file:///Users/irham/Documents/code/aura-platform/prisma/schema.prisma)
+*   **KB Engine**: Semantic search and document vectorization logic.
+    *   [/api/kb](file:///Users/irham/Documents/code/aura-platform/src/app/api/kb/route.ts)
+
+---
+
+## ☁️ Vercel Deployment Guide
+
+To deploy AURA on Vercel, follow these steps:
+
+### 1. Environment Variables
+Configure the following variables in your Vercel Dashboard:
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | Connection string for your production database (PostgreSQL/MySQL/SQLite). |
+| `HEYGEN_API_KEY` | Your HeyGen API Key (Enterprise key for Streaming API). |
+| `ELEVENLABS_API_KEY` | Your ElevenLabs API Key. |
+| `FAL_KEY` | Fal.ai Key for vision and fast processing. |
+| `OPENAI_API_KEY` | OpenAI Key for the neural brain (GPT-4o). |
+| `NEXT_PUBLIC_HEYGEN_AVATAR_ID` | Default Avatar ID for the simulation environment. |
+
+### 2. Database Initialization
+Before the first deployment, run the following command to sync your production database:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npx prisma db push
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Production Build
+Vercel will automatically run:
+```bash
+npm run build
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠️ Local Development
 
-## Learn More
+1.  **Clone & Install**:
+    ```bash
+    git clone https://github.com/IrrhammCode/aura-platform.git
+    cd aura-platform
+    npm install
+    ```
+2.  **Run Dev Server**:
+    ```bash
+    npm run dev
+    ```
+3.  **Prisma Studio**:
+    ```bash
+    npx prisma studio
+    ```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 💎 Design Philosophy
+AURA utilizes a **Neural Dark Aesthetic**, featuring:
+*   **Glassmorphism**: High-transparency cards with subtle border glows.
+*   **Deterministic GSAP**: Precise timeline-based animations for video rendering.
+*   **Fluid HUDs**: Real-time telemetry and interaction logs.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Built with ⚡ by the **AURA Engineering Team**.
