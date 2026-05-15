@@ -45,3 +45,6 @@ next-env.d.ts
 *.db-journal
 *.sqlite
 *.sqlite-journal
+
+# demo
+DEMO_SCRIPT.md
