@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { captureEvent } from '@/lib/posthog';
+import { prisma } from '@/lib/prisma';
+import { decryptApiKey } from '@/lib/encryption';
 
 import fs from 'fs';
 import path from 'path';
@@ -9,21 +11,29 @@ export async function POST(req: Request) {
   try {
     const { message, imageContext, tone, empathy, depth } = await req.json();
 
-    // --- LIVE MODE IMPLEMENTATION ---
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: "OpenAI API Key not configured." }, { status: 500 });
+    
+    // Fetch Organization Settings for API Key
+    const ORG_ID = "org_default"; // Mock single tenant
+    const org = await prisma.organization.findUnique({
+      where: { id: ORG_ID },
+      include: { settings: true }
+    });
+
+    const rawKey = org?.settings?.openAiKey;
+    const apiKey = rawKey ? decryptApiKey(rawKey) : process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json({ error: "OpenAI API Key not configured in Settings." }, { status: 500 });
     }
 
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: apiKey,
     });
 
     // --- RAG / KNOWLEDGE BASE INJECTION ---
     let kbContext = "No knowledge base documents currently synced.";
-    const ORG_ID = "org_default"; // Mock single tenant
     
     try {
-      const { prisma } = await import('@/lib/prisma');
       const { cosineSimilarity } = await import('@/lib/vector');
       
       // 1. Embed the user's message
@@ -34,25 +44,25 @@ export async function POST(req: Request) {
       const queryVector = queryEmbeddingResponse.data[0].embedding;
 
       // 2. Fetch all document chunks for the organization
-      const chunks = await prisma.documentChunk.findMany({
+      const chunks = await (prisma as any).documentChunk.findMany({
         where: { document: { organizationId: ORG_ID } },
         include: { document: true }
       });
 
       if (chunks.length > 0) {
         // 3. Compute similarities
-        const scoredChunks = chunks.map(chunk => {
+        const scoredChunks = chunks.map((chunk: any) => {
           const chunkVector = JSON.parse(chunk.embedding);
           const score = cosineSimilarity(queryVector, chunkVector);
           return { ...chunk, score };
         });
 
         // 4. Sort by highest score and take top 3
-        scoredChunks.sort((a, b) => b.score - a.score);
-        const topChunks = scoredChunks.slice(0, 3).filter(c => c.score > 0.3); // Threshold
+        scoredChunks.sort((a: any, b: any) => b.score - a.score);
+        const topChunks = scoredChunks.slice(0, 3).filter((c: any) => c.score > 0.3); // Threshold
 
         if (topChunks.length > 0) {
-          const contextStrings = topChunks.map(c => `[Source: ${c.document.title}] ${c.content}`);
+          const contextStrings = topChunks.map((c: any) => `[Source: ${c.document.title}] ${c.content}`);
           kbContext = `You have retrieved the following highly relevant information from the company's Knowledge Base based on the user's query:\\n\\n${contextStrings.join('\\n\\n')}\\n\\nUse this information to answer the user accurately.`;
         } else {
            // Fallback to general list if no specific match is strong enough
@@ -77,10 +87,10 @@ export async function POST(req: Request) {
     KNOWLEDGE BASE CONTEXT:
     ${kbContext}
 
-    You will receive the user's spoken message and potentially a description of what you are seeing through the camera right now.
+    You will receive the user's spoken message and potentially a description or an image of what you are seeing through the camera right now.
     You must respond strictly in JSON format with the following structure:
     {
-      "thought_process": "Your internal reasoning for this response.",
+      "thought_process": "Your internal reasoning for this response. If an image is provided, analyze it here first.",
       "spoken_response": "The exact words you will speak to the user. Make it natural, conversational, and helpful.",
       "elevenlabs_emotion_tag": "Must be exactly one of: cheerful, empathetic, professional, apologetic",
       "posthog_event": {
@@ -88,16 +98,22 @@ export async function POST(req: Request) {
         "user_sentiment": "positive, negative, or neutral",
         "resolution_offered": boolean
       }
-    }
-    
-    Current Vision Context: ${imageContext || "No visual data available right now."}`;
+    }`;
+
+    // Handle Multimodal User Message
+    const userContent: any = imageContext 
+       ? [
+           { type: "text", text: message || "Analyze this image." },
+           { type: "image_url", image_url: { url: imageContext } }
+         ]
+       : message;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Optimized for low latency
+      model: "gpt-4o-mini", // Optimized for low latency, supports vision
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: message }
+        { role: "user", content: userContent }
       ],
       temperature: 0.7,
     });

@@ -1,12 +1,12 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Mic, Brain, Sparkles, Wand2, Settings2, Waves, Play, Send, X, MessageSquare, Activity, CheckCircle, Video } from 'lucide-react'
+import { ChevronRight, Mic, Brain, Sparkles, Wand2, Settings2, Waves, Play, Send, X, MessageSquare, Activity, CheckCircle, Video, Image as ImageIcon } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useAura } from '@/context/AuraContext'
 
 export default function AgentForge() {
-  const { documents, setActiveAgent, addInteractionLog } = useAura()
+  const { documents, setActiveAgent, activeAgent, addInteractionLog } = useAura()
   const [tone, setTone] = useState(70)
   const [empathy, setEmpathy] = useState(85)
   const [depth, setDepth] = useState(90)
@@ -15,11 +15,30 @@ export default function AgentForge() {
   const [isTesting, setIsTesting] = useState(false)
   const [isDeployed, setIsDeployed] = useState(false)
   const [inputMessage, setInputMessage] = useState('')
-  const [messages, setMessages] = useState<{role: 'user' | 'agent', text: string}[]>([])
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [messages, setMessages] = useState<{role: 'user' | 'agent', text: string, image?: string}[]>([])
   const chatRef = useRef<HTMLDivElement>(null)
   
   const [embedUrl, setEmbedUrl] = useState<string | null>(null)
   const [isInitializingLiveAvatar, setIsInitializingLiveAvatar] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      alert("Speech recognition not supported in this browser.")
+      return
+    }
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'en-US'
+    recognition.onstart = () => setIsListening(true)
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript
+      setInputMessage(transcript)
+    }
+    recognition.onend = () => setIsListening(false)
+    recognition.start()
+  }
 
   const [voiceList, setVoiceList] = useState<any[]>([
      { id: 'Adam', name: 'Adam - Professional', desc: 'Deep, authoritative, stable resonance.' },
@@ -102,25 +121,67 @@ export default function AgentForge() {
     fetchAvatars();
   }, []);
 
+  // Load chat history on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const agentId = activeAgent?.id || 'aura-01'
+        const res = await fetch(`/api/chat/history?agentId=${agentId}`)
+        const data = await res.json()
+        if (Array.isArray(data) && data.length > 0) {
+          setMessages(data.map((m: any) => ({ role: m.role, text: m.content })))
+        }
+      } catch (err) {
+        console.error('Failed to load chat history:', err)
+      }
+    }
+    loadHistory()
+  }, [activeAgent?.id])
+
   useEffect(() => {
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight
     }
   }, [messages])
 
+  const clearMemory = async () => {
+    if (!confirm('Clear all conversation memory for this agent?')) return
+    try {
+      await fetch(`/api/chat/history?agentId=${activeAgent?.id || 'aura-01'}`, { method: 'DELETE' })
+      setMessages([])
+    } catch (err) {
+      console.error('Failed to clear memory:', err)
+    }
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+     const file = e.target.files?.[0];
+     if (!file) return;
+     const reader = new FileReader();
+     reader.onload = (event) => setSelectedImage(event.target?.result as string);
+     reader.readAsDataURL(file);
+  }
+
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return
+    if (!inputMessage.trim() && !selectedImage) return
     const msg = inputMessage
-    setMessages(prev => [...prev, { role: 'user', text: msg }])
+    const img = selectedImage
+    setMessages(prev => [...prev, { role: 'user', text: msg, image: img || undefined }])
     setInputMessage('')
-    
+    setSelectedImage(null)
+    // Persist user message to history
+    fetch('/api/chat/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: activeAgent?.id || 'aura-01', role: 'user', content: msg, hasImage: !!img })
+    }).catch(err => console.error('Failed to persist user message:', err))
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: msg, 
-          imageContext: null,
+          imageContext: img,
           tone,
           empathy,
           depth
@@ -129,13 +190,39 @@ export default function AgentForge() {
       const data = await res.json()
       if (data.spoken_response) {
         setMessages(prev => [...prev, { role: 'agent', text: data.spoken_response }])
+        // Persist agent response to history
+        fetch('/api/chat/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId: activeAgent?.id || 'aura-01', role: 'agent', content: data.spoken_response })
+        }).catch(err => console.error('Failed to persist agent message:', err))
+        
+        // --- 🗣️ VOICE SYNTHESIS INTEGRATION ---
+        try {
+           const audioRes = await fetch('/api/voice', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                 text: data.spoken_response,
+                 voiceId: activeAgent?.voiceId || undefined
+              })
+           });
+           if (audioRes.ok) {
+              const audioBlob = await audioRes.blob();
+              const audioUrl = URL.createObjectURL(audioBlob);
+              const audio = new Audio(audioUrl);
+              audio.play();
+           }
+        } catch (audioErr) {
+           console.error("Failed to play TTS audio", audioErr);
+        }
         
         // Add to global Interaction Logs
         addInteractionLog({
           input: msg,
           response: data.spoken_response,
           vision: data.posthog_event?.intent_detected || '-',
-          hasImage: false
+          hasImage: !!img
         })
       }
     } catch (error) {
@@ -146,9 +233,19 @@ export default function AgentForge() {
 
   return (
     <div className="p-10 max-w-[1600px] mx-auto space-y-12">
-      <header className="space-y-1">
-        <h1 className="text-3xl font-bold text-white tracking-tighter uppercase">Agent <span className="text-zinc-500 font-medium">Forge</span></h1>
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.4em]">Synthetic Identity Architect</p>
+      <header className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold text-white tracking-tighter uppercase">Agent <span className="text-zinc-500 font-medium">Forge</span></h1>
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.4em]">Synthetic Identity Architect</p>
+        </div>
+        {messages.length > 0 && (
+          <button 
+            onClick={clearMemory}
+            className="px-5 py-2.5 rounded-full border border-red-500/20 text-[9px] font-bold text-red-500/70 uppercase tracking-widest hover:bg-red-500/10 transition-all"
+          >
+            Clear Memory
+          </button>
+        )}
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -251,16 +348,31 @@ export default function AgentForge() {
                         )}
                      </div>
 
-                     {/* Input Area */}
                      <div className="p-6 border-t border-white/10 bg-black">
-                        <div className="relative">
+                        {selectedImage && (
+                           <div className="mb-4 relative inline-block">
+                              <img src={selectedImage} className="h-16 rounded-md border border-white/10" />
+                              <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 rounded-full p-1"><X size={12}/></button>
+                           </div>
+                        )}
+                        <div className="relative flex items-center gap-2">
+                           <input type="file" accept="image/*" id="chat-img-upload" className="hidden" onChange={handleImageUpload} />
+                           <label htmlFor="chat-img-upload" className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors text-zinc-400 hover:text-white">
+                              <ImageIcon size={18} />
+                           </label>
+                           <button 
+                              onClick={startListening}
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
+                           >
+                              <Mic size={18} />
+                           </button>
                            <input 
                               type="text" 
                               value={inputMessage}
                               onChange={(e) => setInputMessage(e.target.value)}
                               onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                              placeholder="Send a test message..."
-                              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-6 pr-16 text-sm text-white focus:outline-none focus:border-cyan-500 transition-all"
+                              placeholder="Send a message or talk to Aura..."
+                              className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-4 pl-6 pr-16 text-sm text-white focus:outline-none focus:border-cyan-500 transition-all"
                            />
                            <button 
                               onClick={handleSendMessage}
@@ -350,9 +462,19 @@ export default function AgentForge() {
           </div>
 
           <button 
-             onClick={() => {
-                setActiveAgent({ id: 'aura-01', name: 'Aura / Alpha', tone, empathy })
+             onClick={async () => {
+                const agentData = { id: 'aura-01', name: 'Aura / Alpha', tone, empathy, depth, avatarId: avatar, voiceId: voice }
+                setActiveAgent(agentData)
                 setIsDeployed(true)
+                try {
+                  await fetch('/api/agents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(agentData)
+                  })
+                } catch (e) {
+                  console.error("Failed to persist agent neural config:", e)
+                }
              }}
              disabled={isDeployed}
              className={`w-full py-6 font-black text-xs uppercase tracking-[0.4em] rounded-2xl transition-all flex justify-center items-center gap-3 ${isDeployed ? 'bg-emerald-500/20 text-emerald-500 cursor-not-allowed border border-emerald-500/50' : 'bg-cyan-500 text-black hover:bg-cyan-400 shadow-[0_20px_40px_-10px_rgba(6,182,212,0.4)]'}`}

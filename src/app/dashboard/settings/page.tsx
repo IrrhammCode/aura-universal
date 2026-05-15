@@ -3,9 +3,10 @@
 import { Settings2, Key, Bell, Shield, Wallet, Globe, Loader2, CheckCircle2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-import { toast } from 'sonner'
+import { useAura } from '@/context/AuraContext'
 
 export default function SettingsPage() {
+  const { agents, setAgents } = useAura()
   const [settings, setSettings] = useState({
     heygenKey: '',
     elevenLabsKey: '',
@@ -41,16 +42,31 @@ export default function SettingsPage() {
       .catch(err => console.error("Failed to load settings:", err))
   }, [])
 
+  const handleAgentUpdate = (id: string, field: string, value: string) => {
+    setAgents(prev => prev.map(agent => agent.id === id ? { ...agent, [field]: value } : agent))
+  }
+
   const handleSave = async () => {
     setIsSaving(true)
     try {
+      // Save global settings
       await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
       })
+
+      // Save all active agents
+      for (const agent of agents) {
+         await fetch('/api/agents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(agent)
+         })
+      }
+
       toast.success("System state synchronized successfully", {
-        description: "All API keys and brand kits have been saved.",
+        description: "All configurations and agent settings have been saved.",
       })
     } catch (err) {
       console.error("Failed to save settings:", err)
@@ -109,6 +125,40 @@ export default function SettingsPage() {
             <SettingsInput icon={<Wallet size={16}/>} label="Brand Hex Color" value={settings.primaryColor || ''} onChange={(e: any) => updateSetting('primaryColor', e.target.value)} placeholder="#06b6d4" />
             <SettingsInput icon={<Bell size={16}/>} label="Calendly Link" value={settings.calendlyUrl || ''} onChange={(e: any) => updateSetting('calendlyUrl', e.target.value)} placeholder="https://calendly.com/your-org" />
          </SettingsGroup>
+
+         {agents.length > 0 && (
+            <SettingsGroup title="Agent Configuration">
+               {agents.map(agent => (
+                  <div key={agent.id} className="p-8 border-b border-white/5 space-y-4">
+                     <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 bg-cyan-500/10 text-cyan-500 rounded-lg flex items-center justify-center font-bold">
+                           {agent.name.charAt(0)}
+                        </div>
+                        <div>
+                           <h4 className="text-sm font-bold text-white uppercase tracking-widest">{agent.name}</h4>
+                           <p className="text-[10px] text-zinc-500 font-mono">{agent.id}</p>
+                        </div>
+                     </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <SettingsInput 
+                           icon={<Key size={16} />} 
+                           label="HeyGen Avatar ID" 
+                           value={agent.avatarId || ''} 
+                           onChange={(e: any) => handleAgentUpdate(agent.id, 'avatarId', e.target.value)} 
+                           placeholder="josh_lite_20230714" 
+                        />
+                        <SettingsInput 
+                           icon={<Key size={16} />} 
+                           label="ElevenLabs Voice ID" 
+                           value={agent.voiceId || ''} 
+                           onChange={(e: any) => handleAgentUpdate(agent.id, 'voiceId', e.target.value)} 
+                           placeholder="1bd001e7e50f421d8919..." 
+                        />
+                     </div>
+                  </div>
+               ))}
+            </SettingsGroup>
+         )}
          
          <button 
            onClick={handleSave}

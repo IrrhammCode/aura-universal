@@ -1,12 +1,17 @@
 'use client'
 
-import { Upload, Database, ShieldCheck, FileText, Globe, Loader2 } from 'lucide-react'
+import { FileText, Upload, Database, Loader2, Trash2, X } from 'lucide-react'
 import { useAura } from '@/context/AuraContext'
 import { useState } from 'react'
 
 export default function KnowledgeBase() {
   const { documents, setDocuments, addTelemetryLog } = useAura()
   const [isUploading, setIsUploading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredDocuments = documents.filter(doc => 
+    doc.title.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   const handleUploadClick = () => {
     document.getElementById('kb-upload')?.click();
@@ -44,6 +49,22 @@ export default function KnowledgeBase() {
       if (e.target) e.target.value = ''
     }
   }
+
+  const handleDeleteDoc = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this document? Its vector embeddings will be permanently removed.")) return;
+    try {
+      const res = await fetch(`/api/kb?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDocuments(prev => prev.filter(d => d.id !== id));
+        addTelemetryLog({ source: 'VECTOR_DB', trace: `Deleted document ${id} and flushed embeddings`, status: 'SUCCESS' });
+      } else {
+        alert("Failed to delete document");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   return (
     <div className="p-10 max-w-[1600px] mx-auto space-y-12">
       <header className="space-y-1">
@@ -68,13 +89,20 @@ export default function KnowledgeBase() {
            </div>
 
            <div className="glass-card rounded-3xl overflow-hidden">
-              <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+              <div className="p-6 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
                  <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Active Collections</h3>
+                 <input 
+                    type="text" 
+                    placeholder="Search KB..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-[10px] text-white placeholder:text-zinc-700 focus:outline-none focus:border-cyan-500/50 w-64 transition-all"
+                 />
               </div>
               <div className="divide-y divide-white/5">
-                 {documents.length > 0 ? (
-                    documents.map((doc, idx) => (
-                       <KBItem key={doc.id} title={doc.title} docs={1} size={doc.size} url={doc.url} />
+                 {filteredDocuments.length > 0 ? (
+                    filteredDocuments.map((doc, idx) => (
+                       <KBItem key={doc.id} id={doc.id} title={doc.title} docs={doc.vectors} size={doc.size} url={doc.url} onDelete={handleDeleteDoc} />
                     ))
                  ) : (
                     <div className="py-20 flex flex-col items-center justify-center space-y-6">
@@ -115,7 +143,7 @@ export default function KnowledgeBase() {
   )
 }
 
-function KBItem({ title, docs, size, url }: any) {
+function KBItem({ id, title, docs, size, url, onDelete }: any) {
   return (
     <div className="p-6 flex items-center justify-between hover:bg-white/[0.01] transition-all group">
        <div className="flex items-center gap-4">
@@ -132,6 +160,9 @@ function KBItem({ title, docs, size, url }: any) {
               Open File
             </a>
           )}
+          <button onClick={(e) => { e.stopPropagation(); onDelete(id); }} className="opacity-0 group-hover:opacity-100 p-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded transition-colors">
+             <X size={14} />
+          </button>
        </div>
     </div>
   )

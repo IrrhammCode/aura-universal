@@ -58,23 +58,45 @@ export async function POST(req: Request) {
       }));
     }
     
-    const enrichedDoc = await prisma.document.create({
+    const savedDoc = await prisma.document.create({
       data: {
         organizationId: ORG_ID,
         title: newDoc.title,
-        size: newDoc.size,
-        url: newDoc.url,
+        size: newDoc.size || `${(content.length / 1024).toFixed(1)} KB`,
         vectors: chunks.length,
+        url: newDoc.url,
         content: content,
         chunks: {
           create: chunkDataToSave
         }
       }
     });
-    
-    return NextResponse.json({ success: true, document: enrichedDoc });
+
+    return NextResponse.json({ success: true, document: savedDoc });
   } catch (error) {
     console.error('Error writing to KB DB:', error);
     return NextResponse.json({ error: 'Failed to save document' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Document ID required' }, { status: 400 });
+    }
+
+    // Prisma cascades deletes if configured, but let's delete chunks manually just in case,
+    // actually Prisma `DocumentChunk` relation has `onDelete: Cascade` in schema.
+    await prisma.document.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting from KB DB:', error);
+    return NextResponse.json({ error: 'Failed to delete document' }, { status: 500 });
   }
 }

@@ -1,23 +1,26 @@
-import fs from 'fs';
-import path from 'path';
+import { prisma } from '@/lib/prisma';
+import { notFound } from 'next/navigation';
+import VideoPlayer from './VideoPlayer';
 
 export default async function VideoFunnel({ params }: { params: { id: string } }) {
   const { id } = await params;
   
-  // Read Brand Kit Settings
-  const dataDir = path.join(process.cwd(), 'data');
-  const settingsPath = path.join(dataDir, 'settings.json');
-  let settings: any = {};
-  if (fs.existsSync(settingsPath)) {
-    settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-  }
+  // 1. Fetch Video Job
+  const job = await prisma.videoJob.findUnique({
+    where: { id },
+    include: { organization: { include: { settings: true } } }
+  });
 
-  const primaryColor = settings.primaryColor || '#06b6d4';
-  const logoUrl = settings.companyLogo || 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Apple-logo.png'; // Fallback
-  const calendlyUrl = settings.calendlyUrl || 'https://calendly.com';
+  if (!job) return notFound();
+
+  const settings = job.organization.settings;
+  const primaryColor = settings?.primaryColor || '#06b6d4';
+  const logoUrl = settings?.companyLogo || 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Apple-logo.png'; 
+  const calendlyUrl = settings?.calendlyUrl || 'https://calendly.com';
 
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col">
+
       {/* Brand Header */}
       <header className="w-full px-8 py-6 flex items-center justify-between border-b border-white/10" style={{ backgroundColor: `${primaryColor}10` }}>
          {logoUrl ? (
@@ -33,20 +36,24 @@ export default async function VideoFunnel({ params }: { params: { id: string } }
       {/* Main Content */}
       <div className="flex-1 max-w-7xl mx-auto w-full p-8 lg:p-12 grid grid-cols-1 lg:grid-cols-12 gap-12">
          
-         {/* Video Section */}
          <div className="lg:col-span-8 space-y-6">
             <h1 className="text-4xl lg:text-5xl font-bold tracking-tighter">
-               A special message just for you.
+               A special message for {job.title.includes('Outreach:') ? job.title.split('Outreach: ')[1] : 'you'}.
             </h1>
             <div className="aspect-video bg-zinc-900 rounded-3xl overflow-hidden border border-white/10 relative shadow-2xl flex items-center justify-center">
-               {/* Mock Video Player */}
-               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
-               <div className="text-zinc-600 flex flex-col items-center z-20">
-                  <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center cursor-pointer hover:bg-white/20 transition-all backdrop-blur-md border border-white/10" style={{ color: primaryColor }}>
-                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                  </div>
-                  <p className="mt-4 text-[10px] font-bold uppercase tracking-widest">Click to Play ({id})</p>
-               </div>
+               {job.videoUrl ? (
+                  <VideoPlayer url={job.videoUrl} poster={logoUrl} jobId={job.id} />
+               ) : (
+                  <>
+                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10" />
+                     <div className="text-zinc-600 flex flex-col items-center z-20">
+                        <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center cursor-wait backdrop-blur-md border border-white/10" style={{ color: primaryColor }}>
+                           <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        </div>
+                        <p className="mt-4 text-[10px] font-bold uppercase tracking-widest">Video is still rendering...</p>
+                     </div>
+                  </>
+               )}
             </div>
          </div>
 

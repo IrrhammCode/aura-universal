@@ -9,6 +9,8 @@ type TelemetryLog = { source: string, trace: string, status: 'SUCCESS' | 'PROCES
 type InteractionLog = { id: string, time: string, input: string, response: string, vision: string, hasImage: boolean }
 
 interface AuraContextType {
+  agents: Agent[]
+  setAgents: React.Dispatch<React.SetStateAction<Agent[]>>
   documents: Document[]
   setDocuments: React.Dispatch<React.SetStateAction<Document[]>>
   addDocument: (doc: Document) => void
@@ -25,6 +27,7 @@ interface AuraContextType {
 const AuraContext = createContext<AuraContextType | undefined>(undefined)
 
 export function AuraProvider({ children }: { children: ReactNode }) {
+  const [agents, setAgents] = useState<Agent[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
   const [activeAgent, setActiveAgent] = useState<Agent | null>(null)
   const [renderJobs, setRenderJobs] = useState<any[]>([])
@@ -90,10 +93,18 @@ export function AuraProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(data)) setDocuments(data);
       })
       .catch(err => console.error("Failed to load KB:", err));
+
+    fetch('/api/agents')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setAgents(data);
+        if (data.length > 0) setActiveAgent(data[0]);
+      })
+      .catch(err => console.error("Failed to load agents:", err));
   }, []);
 
   return (
-    <AuraContext.Provider value={{ documents, setDocuments, addDocument, activeAgent, setActiveAgent, renderJobs, addRenderJob, telemetryLogs, addTelemetryLog, interactionLogs, addInteractionLog }}>
+    <AuraContext.Provider value={{ agents, setAgents, documents, setDocuments, addDocument, activeAgent, setActiveAgent, renderJobs, addRenderJob, telemetryLogs, addTelemetryLog, interactionLogs, addInteractionLog }}>
       {children}
     </AuraContext.Provider>
   )
