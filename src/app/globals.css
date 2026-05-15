@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+:root {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #09090b;
+  --card-border: #27272a;
+  --accent: #06b6d4;
+  --secondary: #a1a1aa;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Linear-style Border */
+.border-linear {
+  border: 1px solid var(--card-border);
+}
+
+.bg-obsidian {
+  background-color: var(--card);
+}
+
+.text-secondary {
+  color: var(--secondary);
+}
+
+/* Subtle Matte Overlay */
+.matte-overlay {
+  position: relative;
+}
+
+.matte-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.03) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.premium-card {
+  background: #09090b;
+  border: 1px solid #18181b;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.premium-card:hover {
+  border-color: #3f3f46;
+  background: #0c0c0e;
+}
+
+.cta-button {
+  background: #ffffff;
+  color: #000000;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.cta-button:hover {
+  background: #e4e4e7;
+  transform: translateY(-1px);
+}
+
+.secondary-button {
+  border: 1px solid #27272a;
+  background: transparent;
+  color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.secondary-button:hover {
+  background: #09090b;
+  border-color: #3f3f46;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.animate-spin-slow {
+  animation: spin 8s linear infinite;
+}
+
+.animate-scan {
+  animation: scan 3s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
